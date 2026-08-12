@@ -12,5 +12,5 @@
   "operation": "retrieval", "status": "succeeded",
   "capture": { "mode": "metadata_only", "contentIncluded": false, "redaction": "source", "policyVersion": "eil-audit-v1" },
   "attributes": { "scenario_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "runner_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" },
-  "vendor": { "namespace": "eil.v1", "attributes": { "tool": "search_enterprise", "query_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111", "result_count": 3, "arms_skipped": 0, "acl_rejected": 0, "acl_drift": false } }
+  "vendor": { "namespace": "eil.v1", "attributes": { "tool": "search_enterprise", "query_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111", "result_count": 3, "arms_skipped": 0, "acl_rejected": 0, "acl_drift": 0 } }
 }
