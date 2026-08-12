@@ -15,8 +15,8 @@
   },
   "workflow": { "workflowId": "jira:PAY-4471", "workflowType": "incident_response" },
   "repository": {
-    "startCommit": "0123456789abcdef0123456789abcdef01234567",
-    "worktreeDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    "startCommit": "c33ec540785766e22a457b959d31a7231c96246c",
+    "worktreeDigest": "sha256:ee5de6a1884c7d2b1d07a496ec3a7ba9b935d251fce1e8fc3b6993553e090cf7"
   },
   "limits": { "maxAttempts": 3, "maxStepsPerAttempt": 40, "timeoutSeconds": 900, "budgetUsd": "25.00" },
   "tools": { "allow": ["eil.search", "eil.get_evidence", "eil.related_evidence", "repo.read", "repo.patch", "test.run", "git.commit"] },
