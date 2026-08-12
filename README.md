@@ -21,7 +21,11 @@ It also provides a credential-free controlled-reference vertical slice. The
 runner resets a disposable payment-retry repository, proves the incident test
 fails, applies the reference fix, proves verification passes, commits the
 artifact, emits a metadata-only canonical EIL receipt, creates a content-digested
-recording, evaluates all 12 acceptance gates, and replays the evidence.
+recording, evaluates all 12 acceptance gates, and replays the evidence. Eight
+gates pass in the controlled run. Live ACL/citation proof, independent
+acceptance, and capture-time recording verification remain unmet rather than
+being simulated; replay verifies the recording after capture. The controlled
+`AcceptanceResult` therefore remains `passed: false` even when replay succeeds.
 
 It does **not** simulate live Amp or Copilot success. Those runners remain
 explicitly capability-blocked until their real environments produce receipts.
@@ -46,7 +50,8 @@ PASS phase0 foundation: 9 valid artifacts, 4 expected rejections, digests verifi
 The controlled-reference run finishes with:
 
 ```text
-REPLAY PASS recording-maas-…: 12/12 gates, digests verified
+REPLAY VERIFIED recording-maas-…: 8/12 gates, digests verified,
+unmet=zero_acl_leakage,citations_resolve,independent_acceptance,recording_verified
 ```
 
 To inspect each lifecycle step separately:

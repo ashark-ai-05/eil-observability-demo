@@ -10,8 +10,9 @@ test("controlled reference run resets, fixes, accepts, and replays", () => {
   });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /RUN maas-/);
-  assert.match(result.stdout, /REPLAY PASS/);
-  assert.match(result.stdout, /12\/12 gates/);
+  assert.match(result.stdout, /REPLAY VERIFIED/);
+  assert.match(result.stdout, /8\/12 gates/);
+  assert.match(result.stdout, /zero_acl_leakage,citations_resolve,independent_acceptance,recording_verified/);
 });
 
 test("replay fails when evidence is missing", async () => {

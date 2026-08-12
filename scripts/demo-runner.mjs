@@ -124,25 +124,24 @@ async function run() {
   const patchedBytes = await readFile(resolve(repo, "payment-retry.mjs"), "utf8");
   const gateFacts = {
     manifest_match: manifestMatches,
-    zero_acl_leakage: evidence.protectedEvidenceIds.every((id) => !evidence.citations.includes(id)),
-    citations_resolve: JSON.stringify(evidence.citations) === JSON.stringify(evidenceManifest.authorized),
+    zero_acl_leakage: false,
+    citations_resolve: false,
     reproduction_fails_before_patch: before.status !== 0,
     verification_passes_after_patch: after.status === 0,
     artifact_matches: patchedBytes === implementation && artifact.length === 40,
-    independent_acceptance: true,
+    independent_acceptance: false,
     outcome_accepted: after.status === 0,
     cost_reconciled: evidence.cost.amount === "0.00" && evidence.cost.method === "controlled_reference",
     coverage_disclosed: Object.keys(evidence.coverage).length === 3,
     limits_respected: evidence.usage.attempts <= scenario.limits.maxAttempts &&
       evidence.usage.steps <= scenario.limits.maxStepsPerAttempt &&
       evidence.usage.elapsedSeconds <= scenario.limits.timeoutSeconds,
-    recording_verified: true,
+    recording_verified: false,
   };
-  const failedFacts = Object.entries(gateFacts).filter(([, passed]) => !passed);
-  if (failedFacts.length > 0) throw new Error(`acceptance facts failed: ${failedFacts.map(([id]) => id).join(", ")}`);
+  const passedCount = Object.values(gateFacts).filter(Boolean).length;
   const acceptance = {
     apiVersion: "eil-observability-demo/v1alpha1", kind: "AcceptanceResult",
-    contract: scenario.acceptance.contract, runId, passed: true,
+    contract: scenario.acceptance.contract, runId, passed: Object.values(gateFacts).every(Boolean),
     gates: Object.entries(gateFacts).map(([id, passed]) => ({ id, passed, evidenceDigest })),
   };
   assertValid(validate.acceptance, acceptance, "acceptance");
@@ -165,7 +164,7 @@ async function run() {
       storedRecording.acceptanceResultDigest !== await fileDigest(acceptancePath)) {
     throw new Error("recording verification failed at capture");
   }
-  console.log(`RUN ${runId} commit=${artifact} gates=12/12`);
+  console.log(`RUN ${runId} commit=${artifact} gates=${passedCount}/12`);
 }
 
 async function replay() {
@@ -184,11 +183,15 @@ async function replay() {
   assertValid(validate.receipt, receipt, "receipt replay");
   const policyErrors = canonicalEventPolicyErrors(receipt);
   if (policyErrors.length > 0) throw new Error(`receipt policy mismatch: ${policyErrors.join(", ")}`);
-  if (recording.scenarioDigest !== await fileDigest(resolve(root, "scenario/payment-retry.json"))) throw new Error("scenario digest mismatch");
-  if (recording.runnerDigest !== await fileDigest(resolve(root, "runners/maas.json"))) throw new Error("runner digest mismatch");
+  const scenarioDigestMatches = recording.scenarioDigest === await fileDigest(resolve(root, "scenario/payment-retry.json"));
+  const runnerDigestMatches = recording.runnerDigest === await fileDigest(resolve(root, "runners/maas.json"));
+  if (!scenarioDigestMatches) throw new Error("scenario digest mismatch");
+  if (!runnerDigestMatches) throw new Error("runner digest mismatch");
   if (evidence.evidenceManifestDigest !== await fileDigest(resolve(root, "scenario/evidence-manifest.json"))) throw new Error("evidence manifest digest mismatch");
-  if (recording.receiptDigests[0] !== await fileDigest(resolve(runDir, "receipt.json"))) throw new Error("receipt digest mismatch");
-  if (recording.acceptanceResultDigest !== await fileDigest(resolve(runDir, "acceptance.json"))) throw new Error("acceptance digest mismatch");
+  const receiptDigestMatches = recording.receiptDigests[0] === await fileDigest(resolve(runDir, "receipt.json"));
+  const acceptanceDigestMatches = recording.acceptanceResultDigest === await fileDigest(resolve(runDir, "acceptance.json"));
+  if (!receiptDigestMatches) throw new Error("receipt digest mismatch");
+  if (!acceptanceDigestMatches) throw new Error("acceptance digest mismatch");
   const committedArtifact = exec("git", ["show", `${evidence.artifactCommit}:payment-retry.mjs`], repo);
   if (committedArtifact.status !== 0) throw new Error("accepted artifact commit is unavailable");
   const verifyRoot = resolve(demoRoot, "verification");
@@ -204,33 +207,43 @@ async function replay() {
   await writeFile(resolve(verifyRoot, "after/payment-retry.test.mjs"), testBytes.stdout);
   const beforeReplay = exec(process.execPath, ["payment-retry.test.mjs"], resolve(verifyRoot, "before"));
   const afterReplay = exec(process.execPath, ["payment-retry.test.mjs"], resolve(verifyRoot, "after"));
+  const templateBytes = Buffer.concat([
+    await readFile(resolve(root, "scenario/repository/payment-retry.mjs")),
+    await readFile(resolve(root, "scenario/repository/payment-retry.test.mjs")),
+  ]);
   const recomputed = {
-    manifest_match: evidence.startCommit === scenario.repository.startCommit && evidence.manifestMatches === true,
-    zero_acl_leakage: evidence.protectedEvidenceIds.every((id) => !evidence.citations.includes(id)),
-    citations_resolve: JSON.stringify(evidence.citations) === JSON.stringify(evidenceManifest.authorized),
+    manifest_match: evidence.startCommit === scenario.repository.startCommit &&
+      digest(templateBytes) === scenario.repository.worktreeDigest,
+    zero_acl_leakage: false,
+    citations_resolve: false,
     reproduction_fails_before_patch: beforeReplay.status !== 0,
     verification_passes_after_patch: afterReplay.status === 0,
     artifact_matches: committedArtifact.stdout === implementation && recording.artifactDigests[0] === digest(committedArtifact.stdout),
-    independent_acceptance: true,
+    independent_acceptance: false,
     outcome_accepted: afterReplay.status === 0,
     cost_reconciled: evidence.cost.currency === "USD" && evidence.cost.amount === "0.00" && evidence.cost.method === "controlled_reference",
     coverage_disclosed: JSON.stringify(Object.keys(evidence.coverage).sort()) === JSON.stringify(["amp", "copilot", "maas"]),
     limits_respected: evidence.usage.attempts <= scenario.limits.maxAttempts &&
       evidence.usage.steps <= scenario.limits.maxStepsPerAttempt &&
       evidence.usage.elapsedSeconds <= scenario.limits.timeoutSeconds,
-    recording_verified: true,
+    // The captured acceptance necessarily predates the recording that embeds
+    // its digest. Replay verifies that recording, but cannot rewrite history
+    // and claim the capture had already been independently verified.
+    recording_verified: false,
   };
   const accepted = new Map(acceptance.gates.map((gate) => [gate.id, gate]));
   for (const [id, passed] of Object.entries(recomputed)) {
     const gate = accepted.get(id);
-    if (!passed || gate?.passed !== passed || gate.evidenceDigest !== evidenceDigest) throw new Error(`acceptance gate mismatch: ${id}`);
+    if (gate?.passed !== passed || gate.evidenceDigest !== evidenceDigest) throw new Error(`acceptance gate mismatch: ${id}`);
   }
   if (receipt.trace.runId !== evidence.runId || acceptance.runId !== evidence.runId ||
       receipt.attributes.scenario_digest !== recording.scenarioDigest ||
       receipt.attributes.runner_digest !== recording.runnerDigest ||
       receipt.attributes.artifact_commit !== evidence.artifactCommit) throw new Error("cross-artifact correlation mismatch");
-  if (!acceptance.passed || !acceptance.gates.every((gate) => gate.passed)) throw new Error("acceptance replay failed");
-  console.log(`REPLAY PASS ${recording.recordingId}: 12/12 gates, digests verified`);
+  if (acceptance.passed !== acceptance.gates.every((gate) => gate.passed)) throw new Error("acceptance aggregate mismatch");
+  const passedCount = acceptance.gates.filter((gate) => gate.passed).length;
+  const unmet = acceptance.gates.filter((gate) => !gate.passed).map((gate) => gate.id).join(",");
+  console.log(`REPLAY VERIFIED ${recording.recordingId}: ${passedCount}/12 gates, digests verified, unmet=${unmet}`);
 }
 
 if (!["reset", "run", "replay", "all"].includes(command)) throw new Error(`unknown command: ${command}`);
