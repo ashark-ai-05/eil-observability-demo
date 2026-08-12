@@ -151,7 +151,7 @@ async function run() {
     apiVersion: "eil-observability-demo/v1alpha1", kind: "Recording",
     recordingId: `recording-${runId}`, runnerKind: "maas_reference", capturedAt: now,
     scenarioDigest, runnerDigest,
-    receiptDigests: [await fileDigest(receiptPath)], artifactDigests: [digest(artifact)],
+    receiptDigests: [await fileDigest(receiptPath)], artifactDigests: [digest(patchedBytes)],
     acceptanceResultDigest: await fileDigest(acceptancePath),
   };
   assertValid(validate.recording, recording, "recording");
