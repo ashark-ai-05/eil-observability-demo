@@ -17,6 +17,16 @@ test("metadata-only receipt rejects raw query and content", async () => {
   assert.equal(validate.receipt(await json("fixtures/invalid/receipt-metadata-content.json")), false);
 });
 
+test("blocked Amp proof preserves facts without claiming acceptance", async () => {
+  const validate = await validators();
+  const proof = await json("recordings/amp-blocked-environment.json");
+  assertValid(validate.runnerProof, proof, "Amp blocked proof");
+  assert.equal(proof.terminalStatus, "blocked_environment");
+  assert.equal(proof.blockers.find((blocker) => blocker.id === "unsupported_cli_version").proven, true);
+  assert.equal(proof.blockers.find((blocker) => blocker.id === "no_available_credits").proven, false);
+  assert.equal(proof.acceptanceGates.commit_to_thread_to_cost, "unmet");
+});
+
 test("acceptance contract contains every gate exactly once", async () => {
   const validate = await validators();
   const result = await json("acceptance/example-result.json");

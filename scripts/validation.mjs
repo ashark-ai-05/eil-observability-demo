@@ -13,12 +13,13 @@ export async function json(relativePath) {
 export async function validators() {
   const ajv = new Ajv2020({ allErrors: true, strict: true });
   addFormats(ajv);
-  const names = ["common", "scenario", "runner", "receipt", "recording", "acceptance"];
+  const names = ["common", "scenario", "runner", "runner-proof", "receipt", "recording", "acceptance"];
   const schemas = await Promise.all(names.map((name) => json(`schemas/${name}.schema.json`)));
   for (const schema of schemas) ajv.addSchema(schema);
   return {
     scenario: ajv.getSchema("https://demo.local/schemas/scenario.schema.json"),
     runner: ajv.getSchema("https://demo.local/schemas/runner.schema.json"),
+    runnerProof: ajv.getSchema("https://demo.local/schemas/runner-proof.schema.json"),
     receipt: ajv.getSchema("https://demo.local/schemas/receipt.schema.json"),
     recording: ajv.getSchema("https://demo.local/schemas/recording.schema.json"),
     acceptance: ajv.getSchema("https://demo.local/schemas/acceptance.schema.json")

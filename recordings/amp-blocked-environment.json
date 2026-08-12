@@ -1,0 +1,14 @@
+{
+  "apiVersion": "eil-observability-demo/v1alpha1", "kind": "RunnerProof", "runnerKind": "amp_cli", "terminalStatus": "blocked_environment",
+  "runner": { "version": "0.0.1774354153-gdeebb8", "executableDigest": "sha256:fe57c8428404f025388cc5a14990e4fda27c79aab54a958b0c71570ad53f1514" },
+  "invocation": { "mode": "execute", "flags": ["-x", "--stream-json", "--dangerously-allow-all"], "promptDigest": "sha256:4b4c985b13125ec768ec3632cdd7b21e0c43bf1217930ab312390a0959f69013", "secretsOmitted": true },
+  "nativeRun": { "id": "T-019ff7f8-8472-71c1-b166-00ea49c85ff5", "streamDigest": "sha256:559a1088b536fc065f6135eb931eee266f153eb35ceabb0db8882a10580daba2", "streamLines": 3 },
+  "observedCapabilities": { "mcpServerCount": 0, "toolCount": 23 },
+  "failure": { "httpClass": 426, "errorType": "invalid_request_error", "responseDigest": "sha256:8e1599099cd7f55accbe0e4c99578c02b4d1975cf5ad70cc1eea58278af58691", "durationMs": 301, "turns": 0 },
+  "blockers": [
+    { "id": "unsupported_cli_version", "proven": true, "evidenceDigest": "sha256:8e1599099cd7f55accbe0e4c99578c02b4d1975cf5ad70cc1eea58278af58691" },
+    { "id": "no_available_credits", "proven": false, "evidenceDigest": "sha256:1616161616161616161616161616161616161616161616161616161616161616" }
+  ],
+  "acceptanceGates": { "structured_stream": "met", "native_run_identity": "met", "mcp_injected": "unmet", "commit_to_thread_to_cost": "unmet" },
+  "recordedAt": "2026-08-12T21:56:00Z"
+}

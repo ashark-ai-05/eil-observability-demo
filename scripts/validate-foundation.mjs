@@ -9,6 +9,7 @@ const valid = [
   [validate.runner, "runners/amp.json"],
   [validate.runner, "runners/copilot.json"],
   [validate.runner, "runners/maas.json"],
+  [validate.runnerProof, "recordings/amp-blocked-environment.json"],
   [validate.receipt, "fixtures/valid/receipt-eil-search.json"],
   [validate.acceptance, "acceptance/example-result.json"],
   [validate.recording, "recordings/example.json"]

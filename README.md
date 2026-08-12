@@ -33,7 +33,7 @@ pnpm demo:validate
 Expected final line:
 
 ```text
-PASS phase0 foundation: 7 valid artifacts, 4 expected rejections, digests verified
+PASS phase0 foundation: 8 valid artifacts, 4 expected rejections, digests verified
 ```
 
 ## Layout
@@ -62,3 +62,8 @@ digests, IDs, counts, ranks, and classifications—not raw query text.
 4. Add the disposable payment-retry repository and deterministic acceptance.
 5. Publish a single record/rerun/replay runbook only after every command is run
    from a clean checkout.
+
+The first paid Amp attempt is preserved as a sanitized `blocked_environment`
+runner proof. It established native thread identity and structured activity, but
+the installed CLI was rejected by the Amp service as unsupported; no successful
+model turn, commit, or cost reconciliation is claimed.
