@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demo.local/schemas/acceptance.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["apiVersion", "kind", "contract", "runId", "passed", "gates"],
+  "properties": {
+    "apiVersion": { "const": "eil-observability-demo/v1alpha1" }, "kind": { "const": "AcceptanceResult" },
+    "contract": { "const": "payment-retry-v1" }, "runId": { "$ref": "common.schema.json#/$defs/identifier" },
+    "passed": { "type": "boolean" },
+    "gates": {
+      "type": "array", "minItems": 12, "maxItems": 12,
+      "items": { "type": "object", "additionalProperties": false, "required": ["id", "passed", "evidenceDigest"], "properties": {
+        "id": { "enum": ["manifest_match", "zero_acl_leakage", "citations_resolve", "reproduction_fails_before_patch", "verification_passes_after_patch", "artifact_matches", "independent_acceptance", "outcome_accepted", "cost_reconciled", "coverage_disclosed", "limits_respected", "recording_verified"] },
+        "passed": { "type": "boolean" }, "evidenceDigest": { "$ref": "common.schema.json#/$defs/digest" }
+      } }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "apiVersion": "eil-observability-demo/v1alpha1",
+  "kind": "Scenario",
+  "scenarioId": "payment-retry-failover-v1",
+  "corpus": {
+    "preset": "showcase",
+    "seed": 4471,
+    "manifestDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "hiddenTruthDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "identity": {
+    "tenantId": "demo-payments",
+    "principalId": "agent-payments",
+    "groups": ["payments-engineering", "platform-readers"]
+  },
+  "workflow": { "workflowId": "jira:PAY-4471", "workflowType": "incident_response" },
+  "repository": {
+    "startCommit": "0123456789abcdef0123456789abcdef01234567",
+    "worktreeDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "limits": { "maxAttempts": 3, "maxStepsPerAttempt": 40, "timeoutSeconds": 900, "budgetUsd": "25.00" },
+  "tools": { "allow": ["eil.search", "eil.get_evidence", "eil.related_evidence", "repo.read", "repo.patch", "test.run", "git.commit"] },
+  "acceptance": { "contract": "payment-retry-v1" }
+}

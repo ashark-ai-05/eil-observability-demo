@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demo.local/schemas/runner-proof.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["apiVersion", "kind", "runnerKind", "terminalStatus", "runner", "invocation", "nativeRun", "observedCapabilities", "blockers", "acceptanceGates", "recordedAt"],
+  "properties": {
+    "apiVersion": { "const": "eil-observability-demo/v1alpha1" },
+    "kind": { "const": "RunnerProof" },
+    "runnerKind": { "enum": ["amp_cli", "copilot_cli", "maas_reference"] },
+    "terminalStatus": { "enum": ["succeeded", "failed_agent", "blocked_environment"] },
+    "runner": {
+      "type": "object", "additionalProperties": false, "required": ["version", "executableDigest"],
+      "properties": { "version": { "$ref": "common.schema.json#/$defs/identifier" }, "executableDigest": { "$ref": "common.schema.json#/$defs/digest" } }
+    },
+    "invocation": {
+      "type": "object", "additionalProperties": false, "required": ["mode", "flags", "promptDigest", "secretsOmitted"],
+      "properties": {
+        "mode": { "enum": ["execute", "replay"] }, "flags": { "type": "array", "items": { "type": "string" } },
+        "promptDigest": { "$ref": "common.schema.json#/$defs/digest" }, "secretsOmitted": { "const": true }
+      }
+    },
+    "nativeRun": {
+      "type": "object", "additionalProperties": false, "required": ["id", "streamDigest", "streamLines"],
+      "properties": { "id": { "$ref": "common.schema.json#/$defs/identifier" }, "streamDigest": { "$ref": "common.schema.json#/$defs/digest" }, "streamLines": { "type": "integer", "minimum": 0 } }
+    },
+    "observedCapabilities": {
+      "type": "object", "additionalProperties": false, "required": ["mcpServerCount", "toolCount"],
+      "properties": { "mcpServerCount": { "type": "integer", "minimum": 0 }, "toolCount": { "type": "integer", "minimum": 0 } }
+    },
+    "failure": {
+      "type": "object", "additionalProperties": false, "required": ["httpClass", "errorType", "responseDigest", "durationMs", "turns"],
+      "properties": {
+        "httpClass": { "type": "integer", "minimum": 400, "maximum": 599 }, "errorType": { "$ref": "common.schema.json#/$defs/identifier" },
+        "responseDigest": { "$ref": "common.schema.json#/$defs/digest" }, "durationMs": { "type": "integer", "minimum": 0 }, "turns": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "blockers": {
+      "type": "array", "minItems": 1, "items": { "type": "object", "additionalProperties": false, "required": ["id", "proven", "evidenceDigest"],
+        "properties": { "id": { "$ref": "common.schema.json#/$defs/identifier" }, "proven": { "type": "boolean" }, "evidenceDigest": { "$ref": "common.schema.json#/$defs/digest" } } }
+    },
+    "acceptanceGates": { "type": "object", "additionalProperties": { "enum": ["met", "unmet", "not_observed"] } },
+    "recordedAt": { "$ref": "common.schema.json#/$defs/timestamp" }
+  },
+  "allOf": [{ "if": { "properties": { "terminalStatus": { "const": "blocked_environment" } } }, "then": { "properties": { "failure": true }, "required": ["failure"] } }]
+}

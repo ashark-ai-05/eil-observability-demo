@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "eventId": "018f6f42-f7e1-7c41-bfd2-3f8d6565953a",
+  "idempotencyKey": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "revisionDigest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "sourceEventId": "eil:search_enterprise:audit-1", "tenantId": "demo-payments",
+  "source": { "kind": "eil", "provider": "enterprise-intelligence-layer" },
+  "identity": { "principalId": "agent-payments", "actorType": "agent" },
+  "trace": { "runId": "run-1", "traceId": "trace-1", "spanId": "span-search-1" },
+  "workflow": { "workflowId": "jira:PAY-4471", "workflowType": "incident_response", "attemptId": "attempt-1", "stepId": "search-1", "stage": "evidence_assembly", "layer": "eil", "role": "evidence", "links": [] },
+  "timing": { "observedAt": "2026-08-12T12:00:00Z", "receivedAt": "2026-08-12T12:00:00Z" },
+  "operation": "retrieval", "status": "succeeded",
+  "capture": { "mode": "metadata_only", "contentIncluded": false, "redaction": "source", "policyVersion": "eil-audit-v1" },
+  "attributes": { "scenario_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "runner_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" },
+  "vendor": { "namespace": "eil.v1", "attributes": { "tool": "search_enterprise", "query_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111", "result_count": 3, "arms_skipped": 0, "acl_rejected": 0, "acl_drift": 0 } }
+}

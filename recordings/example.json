@@ -1,0 +1,9 @@
+{
+  "apiVersion": "eil-observability-demo/v1alpha1", "kind": "Recording", "recordingId": "recording-example",
+  "runnerKind": "maas_reference", "capturedAt": "2026-08-12T12:05:00Z",
+  "scenarioDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "runnerDigest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "receiptDigests": ["sha256:1313131313131313131313131313131313131313131313131313131313131313"],
+  "artifactDigests": ["sha256:1414141414141414141414141414141414141414141414141414141414141414"],
+  "acceptanceResultDigest": "sha256:1515151515151515151515151515151515151515151515151515151515151515"
+}

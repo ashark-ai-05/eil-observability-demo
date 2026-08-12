@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demo.local/schemas/scenario.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "scenarioId", "corpus", "identity", "workflow", "repository", "limits", "tools", "acceptance"],
+  "properties": {
+    "apiVersion": { "const": "eil-observability-demo/v1alpha1" },
+    "kind": { "const": "Scenario" },
+    "scenarioId": { "$ref": "common.schema.json#/$defs/identifier" },
+    "corpus": {
+      "type": "object", "additionalProperties": false,
+      "required": ["preset", "seed", "manifestDigest", "hiddenTruthDigest"],
+      "properties": {
+        "preset": { "enum": ["ci", "showcase", "stress"] },
+        "seed": { "type": "integer", "minimum": 0 },
+        "manifestDigest": { "$ref": "common.schema.json#/$defs/digest" },
+        "hiddenTruthDigest": { "$ref": "common.schema.json#/$defs/digest" }
+      }
+    },
+    "identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tenantId", "principalId", "groups"],
+      "properties": {
+        "tenantId": { "$ref": "common.schema.json#/$defs/identifier" },
+        "principalId": { "$ref": "common.schema.json#/$defs/identifier" },
+        "groups": { "type": "array", "uniqueItems": true, "items": { "$ref": "common.schema.json#/$defs/identifier" } }
+      }
+    },
+    "workflow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["workflowId", "workflowType"],
+      "properties": {
+        "workflowId": { "$ref": "common.schema.json#/$defs/identifier" },
+        "workflowType": { "const": "incident_response" }
+      }
+    },
+    "repository": {
+      "type": "object", "additionalProperties": false,
+      "required": ["startCommit", "worktreeDigest"],
+      "properties": {
+        "startCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "worktreeDigest": { "$ref": "common.schema.json#/$defs/digest" }
+      }
+    },
+    "limits": {
+      "type": "object", "additionalProperties": false,
+      "required": ["maxAttempts", "maxStepsPerAttempt", "timeoutSeconds", "budgetUsd"],
+      "properties": {
+        "maxAttempts": { "type": "integer", "minimum": 1 },
+        "maxStepsPerAttempt": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "budgetUsd": { "type": "string", "pattern": "^\\d+\\.\\d{2}$" }
+      }
+    },
+    "tools": {
+      "type": "object", "additionalProperties": false,
+      "required": ["allow"],
+      "properties": {
+        "allow": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["eil.search", "eil.get_evidence", "eil.related_evidence", "repo.read", "repo.patch", "test.run", "git.commit"] } }
+      }
+    },
+    "acceptance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contract"],
+      "properties": { "contract": { "const": "payment-retry-v1" } }
+    }
+  }
+}

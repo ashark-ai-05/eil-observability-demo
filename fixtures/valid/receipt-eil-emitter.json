@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "eventId": "018f6f42-f7e1-7c41-bfd2-3f8d6565953b",
+  "idempotencyKey": "sha256:2323232323232323232323232323232323232323232323232323232323232323",
+  "revisionDigest": "sha256:2424242424242424242424242424242424242424242424242424242424242424",
+  "sourceEventId": "eil:search_enterprise:audit-2", "tenantId": "demo-payments",
+  "source": { "kind": "eil", "provider": "enterprise-intelligence-layer" },
+  "identity": { "principalId": "agent-payments", "actorType": "unknown" },
+  "trace": { "runId": "eil-session-1", "traceId": "eil-trace-1", "spanId": "eil-span-1" },
+  "timing": { "observedAt": "2026-08-12T12:00:00Z", "receivedAt": "2026-08-12T12:00:00Z" },
+  "operation": "retrieval", "status": "succeeded",
+  "capture": { "mode": "metadata_only", "contentIncluded": false, "redaction": "source", "policyVersion": "eil-audit-v1" },
+  "attributes": {},
+  "vendor": { "namespace": "eil.v1", "attributes": { "tool": "search_enterprise", "query_digest": "sha256:2525252525252525252525252525252525252525252525252525252525252525", "result_count": 3, "arms_skipped": 0, "acl_rejected": 0, "acl_drift": 0 } }
+}

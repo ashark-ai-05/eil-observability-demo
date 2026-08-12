@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demo.local/schemas/runner.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["apiVersion", "kind", "runnerKind", "mode", "version", "configurationDigest", "capabilities", "unsupported"],
+  "properties": {
+    "apiVersion": { "const": "eil-observability-demo/v1alpha1" },
+    "kind": { "const": "RunnerCapability" },
+    "runnerKind": { "enum": ["amp_cli", "copilot_cli", "maas_reference"] },
+    "mode": { "enum": ["live", "replay"] },
+    "version": { "$ref": "common.schema.json#/$defs/identifier" },
+    "configurationDigest": { "$ref": "common.schema.json#/$defs/digest" },
+    "capabilities": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mcp", "structuredActivity", "managedTelemetry", "synchronousCost", "asynchronousCost", "commitIdentityPropagation"],
+      "properties": {
+        "mcp": { "type": "boolean" }, "structuredActivity": { "type": "boolean" },
+        "managedTelemetry": { "type": "boolean" }, "synchronousCost": { "type": "boolean" },
+        "asynchronousCost": { "type": "boolean" }, "commitIdentityPropagation": { "type": "boolean" }
+      }
+    },
+    "unsupported": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+  }
+}
