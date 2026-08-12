@@ -26,6 +26,7 @@ const exec = (program, args, cwd = root) => spawnSync(program, args, {
     GIT_COMMITTER_DATE: "2026-08-12T12:00:00Z",
   },
 });
+const implementation = `export function shouldRetryPayment({ status, attempts }) {\n  if (attempts >= 3) return false;\n  return status === 429 || status >= 500;\n}\n`;
 
 async function reset() {
   await rm(demoRoot, { recursive: true, force: true });
@@ -47,6 +48,7 @@ async function reset() {
 async function run() {
   const scenario = await json("scenario/payment-retry.json");
   const runner = await json("runners/maas.json");
+  const evidenceManifest = await json("scenario/evidence-manifest.json");
   const validate = await validators();
   assertValid(validate.scenario, scenario, "scenario");
   assertValid(validate.runner, runner, "maas runner");
@@ -61,7 +63,6 @@ async function run() {
   const before = exec(process.execPath, ["payment-retry.test.mjs"], repo);
   if (before.status === 0) throw new Error("incident reproduction unexpectedly passed before patch");
 
-  const implementation = `export function shouldRetryPayment({ status, attempts }) {\n  if (attempts >= 3) return false;\n  return status === 429 || status >= 500;\n}\n`;
   await writeFile(resolve(repo, "payment-retry.mjs"), implementation);
   const after = exec(process.execPath, ["payment-retry.test.mjs"], repo);
   if (after.status !== 0) throw new Error(`verification failed after patch: ${after.stderr}`);
@@ -109,8 +110,9 @@ async function run() {
     runId, runnerKind: "maas_reference", scenarioId: scenario.scenarioId,
     reproductionExitCode: before.status, verificationExitCode: after.status,
     startCommit, artifactCommit: artifact, manifestMatches,
-    protectedEvidenceObserved: false,
-    citations: ["jira:PAY-4471", "confluence:CONF-PAY-RETRY", "git:payment-retry.mjs"],
+    evidenceManifestDigest: await fileDigest(resolve(root, "scenario/evidence-manifest.json")),
+    protectedEvidenceIds: evidenceManifest.forbidden,
+    citations: evidenceManifest.authorized,
     cost: { currency: "USD", amount: "0.00", method: "controlled_reference" },
     coverage: { amp: "blocked_environment", copilot: "blocked_environment", maas: "observed" },
     limits: scenario.limits,
@@ -122,8 +124,8 @@ async function run() {
   const patchedBytes = await readFile(resolve(repo, "payment-retry.mjs"), "utf8");
   const gateFacts = {
     manifest_match: manifestMatches,
-    zero_acl_leakage: evidence.protectedEvidenceObserved === false,
-    citations_resolve: evidence.citations.length === 3 && evidence.citations.every((citation) => citation.includes(":")),
+    zero_acl_leakage: evidence.protectedEvidenceIds.every((id) => !evidence.citations.includes(id)),
+    citations_resolve: JSON.stringify(evidence.citations) === JSON.stringify(evidenceManifest.authorized),
     reproduction_fails_before_patch: before.status !== 0,
     verification_passes_after_patch: after.status === 0,
     artifact_matches: patchedBytes === implementation && artifact.length === 40,
@@ -168,14 +170,65 @@ async function run() {
 
 async function replay() {
   const validate = await validators();
+  const scenario = await json("scenario/payment-retry.json");
+  const runner = await json("runners/maas.json");
+  const evidenceManifest = await json("scenario/evidence-manifest.json");
   const recording = JSON.parse(await readFile(resolve(runDir, "recording.json"), "utf8"));
   const acceptance = JSON.parse(await readFile(resolve(runDir, "acceptance.json"), "utf8"));
   const receipt = JSON.parse(await readFile(resolve(runDir, "receipt.json"), "utf8"));
+  const evidencePath = resolve(runDir, "evidence.json");
+  const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
+  const evidenceDigest = await fileDigest(evidencePath);
   assertValid(validate.recording, recording, "recording replay");
   assertValid(validate.acceptance, acceptance, "acceptance replay");
   assertValid(validate.receipt, receipt, "receipt replay");
+  const policyErrors = canonicalEventPolicyErrors(receipt);
+  if (policyErrors.length > 0) throw new Error(`receipt policy mismatch: ${policyErrors.join(", ")}`);
+  if (recording.scenarioDigest !== await fileDigest(resolve(root, "scenario/payment-retry.json"))) throw new Error("scenario digest mismatch");
+  if (recording.runnerDigest !== await fileDigest(resolve(root, "runners/maas.json"))) throw new Error("runner digest mismatch");
+  if (evidence.evidenceManifestDigest !== await fileDigest(resolve(root, "scenario/evidence-manifest.json"))) throw new Error("evidence manifest digest mismatch");
   if (recording.receiptDigests[0] !== await fileDigest(resolve(runDir, "receipt.json"))) throw new Error("receipt digest mismatch");
   if (recording.acceptanceResultDigest !== await fileDigest(resolve(runDir, "acceptance.json"))) throw new Error("acceptance digest mismatch");
+  const committedArtifact = exec("git", ["show", `${evidence.artifactCommit}:payment-retry.mjs`], repo);
+  if (committedArtifact.status !== 0) throw new Error("accepted artifact commit is unavailable");
+  const verifyRoot = resolve(demoRoot, "verification");
+  await rm(verifyRoot, { recursive: true, force: true });
+  await mkdir(resolve(verifyRoot, "before"), { recursive: true });
+  await mkdir(resolve(verifyRoot, "after"), { recursive: true });
+  const testBytes = exec("git", ["show", `${evidence.artifactCommit}:payment-retry.test.mjs`], repo);
+  const beforeBytes = exec("git", ["show", `${evidence.artifactCommit}^:payment-retry.mjs`], repo);
+  if (testBytes.status !== 0 || beforeBytes.status !== 0) throw new Error("verification inputs unavailable from git");
+  await writeFile(resolve(verifyRoot, "before/payment-retry.mjs"), beforeBytes.stdout);
+  await writeFile(resolve(verifyRoot, "before/payment-retry.test.mjs"), testBytes.stdout);
+  await writeFile(resolve(verifyRoot, "after/payment-retry.mjs"), committedArtifact.stdout);
+  await writeFile(resolve(verifyRoot, "after/payment-retry.test.mjs"), testBytes.stdout);
+  const beforeReplay = exec(process.execPath, ["payment-retry.test.mjs"], resolve(verifyRoot, "before"));
+  const afterReplay = exec(process.execPath, ["payment-retry.test.mjs"], resolve(verifyRoot, "after"));
+  const recomputed = {
+    manifest_match: evidence.startCommit === scenario.repository.startCommit && evidence.manifestMatches === true,
+    zero_acl_leakage: evidence.protectedEvidenceIds.every((id) => !evidence.citations.includes(id)),
+    citations_resolve: JSON.stringify(evidence.citations) === JSON.stringify(evidenceManifest.authorized),
+    reproduction_fails_before_patch: beforeReplay.status !== 0,
+    verification_passes_after_patch: afterReplay.status === 0,
+    artifact_matches: committedArtifact.stdout === implementation && recording.artifactDigests[0] === digest(committedArtifact.stdout),
+    independent_acceptance: true,
+    outcome_accepted: afterReplay.status === 0,
+    cost_reconciled: evidence.cost.currency === "USD" && evidence.cost.amount === "0.00" && evidence.cost.method === "controlled_reference",
+    coverage_disclosed: JSON.stringify(Object.keys(evidence.coverage).sort()) === JSON.stringify(["amp", "copilot", "maas"]),
+    limits_respected: evidence.usage.attempts <= scenario.limits.maxAttempts &&
+      evidence.usage.steps <= scenario.limits.maxStepsPerAttempt &&
+      evidence.usage.elapsedSeconds <= scenario.limits.timeoutSeconds,
+    recording_verified: true,
+  };
+  const accepted = new Map(acceptance.gates.map((gate) => [gate.id, gate]));
+  for (const [id, passed] of Object.entries(recomputed)) {
+    const gate = accepted.get(id);
+    if (!passed || gate?.passed !== passed || gate.evidenceDigest !== evidenceDigest) throw new Error(`acceptance gate mismatch: ${id}`);
+  }
+  if (receipt.trace.runId !== evidence.runId || acceptance.runId !== evidence.runId ||
+      receipt.attributes.scenario_digest !== recording.scenarioDigest ||
+      receipt.attributes.runner_digest !== recording.runnerDigest ||
+      receipt.attributes.artifact_commit !== evidence.artifactCommit) throw new Error("cross-artifact correlation mismatch");
   if (!acceptance.passed || !acceptance.gates.every((gate) => gate.passed)) throw new Error("acceptance replay failed");
   console.log(`REPLAY PASS ${recording.recordingId}: 12/12 gates, digests verified`);
 }
@@ -183,4 +236,9 @@ async function replay() {
 if (!["reset", "run", "replay", "all"].includes(command)) throw new Error(`unknown command: ${command}`);
 if (command === "reset" || command === "all") await reset();
 if (command === "run" || command === "all") await run();
-if (command === "replay" || command === "all") await replay();
+if (command === "replay") await replay();
+if (command === "all") {
+  const verified = exec(process.execPath, ["scripts/demo-runner.mjs", "replay"]);
+  if (verified.status !== 0) throw new Error(`independent replay failed: ${verified.stderr}`);
+  process.stdout.write(verified.stdout);
+}

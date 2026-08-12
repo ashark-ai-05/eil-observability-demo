@@ -1,0 +1,8 @@
+{
+  "authorized": [
+    "jira:PAY-4471",
+    "confluence:CONF-PAY-RETRY",
+    "git:payment-retry.mjs"
+  ],
+  "forbidden": ["confluence:CONF-RESTRICTED"]
+}
