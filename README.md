@@ -17,9 +17,14 @@ The Phase 0 foundation is executable and credential-free. It validates:
 - recording manifests and tamper detection;
 - deterministic acceptance-result structure.
 
-It does **not** yet run the complete agent demo. Live Amp and Copilot recordings,
-the disposable code fixture, cross-product processes, and the cockpit are tracked
-as explicit capability gates rather than simulated.
+It also provides a credential-free controlled-reference vertical slice. The
+runner resets a disposable payment-retry repository, proves the incident test
+fails, applies the reference fix, proves verification passes, commits the
+artifact, emits a metadata-only canonical EIL receipt, creates a content-digested
+recording, evaluates all 12 acceptance gates, and replays the evidence.
+
+It does **not** simulate live Amp or Copilot success. Those runners remain
+explicitly capability-blocked until their real environments produce receipts.
 
 ## Run
 
@@ -29,6 +34,7 @@ Prerequisites: Node.js 22 or newer and pnpm 10.32.1.
 pnpm install --frozen-lockfile
 pnpm check
 pnpm demo:validate
+pnpm demo:test
 ```
 
 Expected final line:
@@ -36,6 +42,22 @@ Expected final line:
 ```text
 PASS phase0 foundation: 9 valid artifacts, 4 expected rejections, digests verified
 ```
+
+The controlled-reference run finishes with:
+
+```text
+REPLAY PASS recording-maas-…: 12/12 gates, digests verified
+```
+
+To inspect each lifecycle step separately:
+
+```bash
+pnpm demo:reset
+pnpm demo:run
+pnpm demo:replay
+```
+
+Runtime output is written below `.demo/` and is intentionally git-ignored.
 
 ## Layout
 
@@ -65,11 +87,9 @@ that compatible wire schema; it is not a third event vocabulary.
 
 1. Record a real Amp CLI run and reconcile its commit trailer to thread cost.
 2. Measure a real authenticated Copilot CLI environment and managed telemetry.
-3. Wire EIL MCP events into observability ingestion using the vendored canonical
-   event schema and cross-repository conformance fixtures.
-4. Add the disposable payment-retry repository and deterministic acceptance.
-5. Publish a single record/rerun/replay runbook only after every command is run
-   from a clean checkout.
+3. Replace the controlled-reference receipt with live EIL MCP event ingestion;
+   the same vendored schema and replay validator are already exercised here.
+4. Add the cockpit only after live runner receipts exist.
 
 The first paid Amp attempt is preserved as a sanitized `blocked_environment`
 runner proof. It established native thread identity and structured activity, but
