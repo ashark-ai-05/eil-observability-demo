@@ -1,0 +1,7 @@
+{
+  "apiVersion": "eil-observability-demo/v1alpha1", "kind": "RunnerCapability",
+  "runnerKind": "amp_cli", "mode": "live", "version": "pending-live-proof",
+  "configurationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "capabilities": { "mcp": true, "structuredActivity": true, "managedTelemetry": false, "synchronousCost": false, "asynchronousCost": true, "commitIdentityPropagation": true },
+  "unsupported": ["model-endpoint override through MaaS gateway", "offline model-response replay"]
+}

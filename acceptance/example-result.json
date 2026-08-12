@@ -1,0 +1,17 @@
+{
+  "apiVersion": "eil-observability-demo/v1alpha1", "kind": "AcceptanceResult", "contract": "payment-retry-v1", "runId": "run-example", "passed": true,
+  "gates": [
+    { "id": "manifest_match", "passed": true, "evidenceDigest": "sha256:0101010101010101010101010101010101010101010101010101010101010101" },
+    { "id": "zero_acl_leakage", "passed": true, "evidenceDigest": "sha256:0202020202020202020202020202020202020202020202020202020202020202" },
+    { "id": "citations_resolve", "passed": true, "evidenceDigest": "sha256:0303030303030303030303030303030303030303030303030303030303030303" },
+    { "id": "reproduction_fails_before_patch", "passed": true, "evidenceDigest": "sha256:0404040404040404040404040404040404040404040404040404040404040404" },
+    { "id": "verification_passes_after_patch", "passed": true, "evidenceDigest": "sha256:0505050505050505050505050505050505050505050505050505050505050505" },
+    { "id": "artifact_matches", "passed": true, "evidenceDigest": "sha256:0606060606060606060606060606060606060606060606060606060606060606" },
+    { "id": "independent_acceptance", "passed": true, "evidenceDigest": "sha256:0707070707070707070707070707070707070707070707070707070707070707" },
+    { "id": "outcome_accepted", "passed": true, "evidenceDigest": "sha256:0808080808080808080808080808080808080808080808080808080808080808" },
+    { "id": "cost_reconciled", "passed": true, "evidenceDigest": "sha256:0909090909090909090909090909090909090909090909090909090909090909" },
+    { "id": "coverage_disclosed", "passed": true, "evidenceDigest": "sha256:1010101010101010101010101010101010101010101010101010101010101010" },
+    { "id": "limits_respected", "passed": true, "evidenceDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111" },
+    { "id": "recording_verified", "passed": true, "evidenceDigest": "sha256:1212121212121212121212121212121212121212121212121212121212121212" }
+  ]
+}

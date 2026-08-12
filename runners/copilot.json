@@ -1,0 +1,7 @@
+{
+  "apiVersion": "eil-observability-demo/v1alpha1", "kind": "RunnerCapability",
+  "runnerKind": "copilot_cli", "mode": "live", "version": "pending-authenticated-environment",
+  "configurationDigest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "capabilities": { "mcp": true, "structuredActivity": true, "managedTelemetry": true, "synchronousCost": false, "asynchronousCost": false, "commitIdentityPropagation": false },
+  "unsupported": ["deterministic commit-to-session identity not yet observed", "tenant cost coverage not yet observed"]
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demo.local/schemas/receipt.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["apiVersion", "kind", "eventId", "tenantId", "workflowId", "attemptId", "stepId", "source", "operation", "observedAt", "status", "capture", "attributes", "scenarioDigest", "runnerDigest"],
+  "properties": {
+    "apiVersion": { "const": "eil-observability-demo/v1alpha1" },
+    "kind": { "const": "CanonicalReceipt" },
+    "eventId": { "type": "string", "format": "uuid" },
+    "tenantId": { "$ref": "common.schema.json#/$defs/identifier" },
+    "workflowId": { "$ref": "common.schema.json#/$defs/identifier" },
+    "attemptId": { "$ref": "common.schema.json#/$defs/identifier" },
+    "stepId": { "$ref": "common.schema.json#/$defs/identifier" },
+    "source": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "provider", "sourceEventId"],
+      "properties": {
+        "kind": { "enum": ["eil", "amp", "copilot", "maas", "harness", "egress_proxy"] },
+        "provider": { "$ref": "common.schema.json#/$defs/identifier" },
+        "sourceEventId": { "$ref": "common.schema.json#/$defs/identifier" }
+      }
+    },
+    "operation": { "enum": ["run", "model_call", "tool_call", "retrieval", "memory", "approval", "handoff", "artifact", "evaluation", "outcome", "policy"] },
+    "observedAt": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "status": { "enum": ["started", "succeeded", "failed", "cancelled", "waiting", "unknown"] },
+    "capture": {
+      "type": "object", "additionalProperties": false, "required": ["mode", "contentIncluded", "policyVersion"],
+      "properties": {
+        "mode": { "enum": ["metadata_only", "approved_content"] },
+        "contentIncluded": { "type": "boolean" },
+        "policyVersion": { "$ref": "common.schema.json#/$defs/identifier" },
+        "payloadRef": { "type": "string", "minLength": 1 },
+        "payloadDigest": { "$ref": "common.schema.json#/$defs/digest" }
+      },
+      "allOf": [{ "if": { "properties": { "mode": { "const": "metadata_only" } } }, "then": { "properties": { "contentIncluded": { "const": false }, "payloadRef": false } } }]
+    },
+    "attributes": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "queryDigest": { "$ref": "common.schema.json#/$defs/digest" },
+        "resultCount": { "type": "integer", "minimum": 0 },
+        "evidenceIds": { "type": "array", "uniqueItems": true, "items": { "$ref": "common.schema.json#/$defs/identifier" } },
+        "latencyMs": { "type": "integer", "minimum": 0 },
+        "classification": { "type": "string", "minLength": 1 }
+      }
+    },
+    "scenarioDigest": { "$ref": "common.schema.json#/$defs/digest" },
+    "runnerDigest": { "$ref": "common.schema.json#/$defs/digest" }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "apiVersion": "eil-observability-demo/v1alpha1", "kind": "RunnerCapability",
+  "runnerKind": "maas_reference", "mode": "live", "version": "phase0-library",
+  "configurationDigest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "capabilities": { "mcp": true, "structuredActivity": true, "managedTelemetry": true, "synchronousCost": true, "asynchronousCost": false, "commitIdentityPropagation": true },
+  "unsupported": ["deployed service process not yet packaged"]
+}

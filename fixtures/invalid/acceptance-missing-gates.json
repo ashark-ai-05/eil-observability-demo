@@ -1,0 +1,3 @@
+{
+  "apiVersion": "eil-observability-demo/v1alpha1", "kind": "AcceptanceResult", "contract": "payment-retry-v1", "runId": "bad", "passed": true, "gates": []
+}

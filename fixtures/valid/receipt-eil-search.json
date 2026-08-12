@@ -1,0 +1,11 @@
+{
+  "apiVersion": "eil-observability-demo/v1alpha1", "kind": "CanonicalReceipt",
+  "eventId": "018f6f42-f7e1-7c41-bfd2-3f8d6565953a", "tenantId": "demo-payments",
+  "workflowId": "jira:PAY-4471", "attemptId": "attempt-1", "stepId": "search-1",
+  "source": { "kind": "eil", "provider": "enterprise-intelligence-layer", "sourceEventId": "audit-1" },
+  "operation": "retrieval", "observedAt": "2026-08-12T12:00:00Z", "status": "succeeded",
+  "capture": { "mode": "metadata_only", "contentIncluded": false, "policyVersion": "metadata-v1" },
+  "attributes": { "queryDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111", "resultCount": 3, "evidenceIds": ["PAY-4471", "CONF-200", "service-payments:src/retry.ts"], "latencyMs": 42, "classification": "subject_search" },
+  "scenarioDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "runnerDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+}
