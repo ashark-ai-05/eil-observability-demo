@@ -1,49 +1,107 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://demo.local/schemas/receipt.schema.json",
+  "title": "Enterprise AI Observability canonical event v1 (vendored wire schema)",
   "type": "object", "additionalProperties": false,
-  "required": ["apiVersion", "kind", "eventId", "tenantId", "workflowId", "attemptId", "stepId", "source", "operation", "observedAt", "status", "capture", "attributes", "scenarioDigest", "runnerDigest"],
+  "required": ["schemaVersion", "eventId", "idempotencyKey", "revisionDigest", "sourceEventId", "tenantId", "source", "identity", "trace", "timing", "operation", "status", "capture", "attributes", "vendor"],
   "properties": {
-    "apiVersion": { "const": "eil-observability-demo/v1alpha1" },
-    "kind": { "const": "CanonicalReceipt" },
+    "schemaVersion": { "const": 1 },
     "eventId": { "type": "string", "format": "uuid" },
+    "idempotencyKey": { "$ref": "common.schema.json#/$defs/digest" },
+    "revisionDigest": { "$ref": "common.schema.json#/$defs/digest" },
+    "sourceEventId": { "$ref": "common.schema.json#/$defs/identifier" },
     "tenantId": { "$ref": "common.schema.json#/$defs/identifier" },
-    "workflowId": { "$ref": "common.schema.json#/$defs/identifier" },
-    "attemptId": { "$ref": "common.schema.json#/$defs/identifier" },
-    "stepId": { "$ref": "common.schema.json#/$defs/identifier" },
     "source": {
-      "type": "object", "additionalProperties": false, "required": ["kind", "provider", "sourceEventId"],
+      "type": "object", "additionalProperties": false, "required": ["kind", "provider"],
       "properties": {
-        "kind": { "enum": ["eil", "amp", "copilot", "maas", "harness", "egress_proxy"] },
+        "kind": { "enum": ["copilot", "amp", "maas", "harness", "egress_proxy", "eil"] },
         "provider": { "$ref": "common.schema.json#/$defs/identifier" },
-        "sourceEventId": { "$ref": "common.schema.json#/$defs/identifier" }
+        "instanceId": { "$ref": "common.schema.json#/$defs/identifier" },
+        "producerVersion": { "$ref": "common.schema.json#/$defs/identifier" }
       }
+    },
+    "identity": {
+      "type": "object", "additionalProperties": false, "required": ["principalId", "actorType"],
+      "properties": {
+        "principalId": { "$ref": "common.schema.json#/$defs/identifier" },
+        "actorType": { "enum": ["human", "service", "agent", "unknown"] },
+        "teamId": { "$ref": "common.schema.json#/$defs/identifier" }
+      }
+    },
+    "trace": {
+      "type": "object", "additionalProperties": false, "required": ["runId", "traceId", "spanId"],
+      "properties": {
+        "runId": { "$ref": "common.schema.json#/$defs/identifier" }, "traceId": { "$ref": "common.schema.json#/$defs/identifier" },
+        "spanId": { "$ref": "common.schema.json#/$defs/identifier" }, "parentSpanId": { "$ref": "common.schema.json#/$defs/identifier" }
+      }
+    },
+    "workflow": { "$ref": "#/$defs/workflow" },
+    "timing": {
+      "type": "object", "additionalProperties": false, "required": ["observedAt", "receivedAt"],
+      "properties": { "observedAt": { "$ref": "common.schema.json#/$defs/timestamp" }, "receivedAt": { "$ref": "common.schema.json#/$defs/timestamp" } }
     },
     "operation": { "enum": ["run", "model_call", "tool_call", "retrieval", "memory", "approval", "handoff", "artifact", "evaluation", "outcome", "policy"] },
-    "observedAt": { "$ref": "common.schema.json#/$defs/timestamp" },
     "status": { "enum": ["started", "succeeded", "failed", "cancelled", "waiting", "unknown"] },
     "capture": {
-      "type": "object", "additionalProperties": false, "required": ["mode", "contentIncluded", "policyVersion"],
+      "type": "object", "additionalProperties": false, "required": ["mode", "contentIncluded", "redaction", "policyVersion"],
       "properties": {
-        "mode": { "enum": ["metadata_only", "approved_content"] },
-        "contentIncluded": { "type": "boolean" },
-        "policyVersion": { "$ref": "common.schema.json#/$defs/identifier" },
-        "payloadRef": { "type": "string", "minLength": 1 },
+        "mode": { "enum": ["metadata_only", "approved_content"] }, "contentIncluded": { "type": "boolean" },
+        "redaction": { "enum": ["not_applicable", "source", "ingress"] }, "policyVersion": { "$ref": "common.schema.json#/$defs/identifier" },
         "payloadDigest": { "$ref": "common.schema.json#/$defs/digest" }
       },
-      "allOf": [{ "if": { "properties": { "mode": { "const": "metadata_only" } } }, "then": { "properties": { "contentIncluded": { "const": false }, "payloadRef": false } } }]
+      "allOf": [{ "if": { "properties": { "mode": { "const": "metadata_only" } } }, "then": { "properties": { "contentIncluded": { "const": false } } } }]
     },
-    "attributes": {
+    "usage": {
       "type": "object", "additionalProperties": false,
       "properties": {
-        "queryDigest": { "$ref": "common.schema.json#/$defs/digest" },
-        "resultCount": { "type": "integer", "minimum": 0 },
-        "evidenceIds": { "type": "array", "uniqueItems": true, "items": { "$ref": "common.schema.json#/$defs/identifier" } },
-        "latencyMs": { "type": "integer", "minimum": 0 },
-        "classification": { "type": "string", "minLength": 1 }
+        "inputTokens": { "type": "integer", "minimum": 0 }, "outputTokens": { "type": "integer", "minimum": 0 },
+        "cacheReadTokens": { "type": "integer", "minimum": 0 }, "cacheWriteTokens": { "type": "integer", "minimum": 0 },
+        "providerReportedCost": { "type": "object", "additionalProperties": false, "required": ["amount", "currency"], "properties": { "amount": { "type": "string", "pattern": "^\\d+(?:\\.\\d+)?$" }, "currency": { "type": "string", "pattern": "^[A-Z]{3}$" } } }
       }
     },
-    "scenarioDigest": { "$ref": "common.schema.json#/$defs/digest" },
-    "runnerDigest": { "$ref": "common.schema.json#/$defs/digest" }
+    "model": {
+      "type": "object", "additionalProperties": false, "required": ["provider", "name"],
+      "properties": { "provider": { "$ref": "common.schema.json#/$defs/identifier" }, "name": { "$ref": "common.schema.json#/$defs/identifier" }, "version": { "$ref": "common.schema.json#/$defs/identifier" } }
+    },
+    "attributes": { "$ref": "#/$defs/attributes" },
+    "vendor": {
+      "type": "object", "additionalProperties": false, "required": ["namespace", "attributes"],
+      "properties": {
+        "namespace": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]{1,127}$" },
+        "attributes": { "$ref": "#/$defs/attributes" },
+        "rawPayload": { "type": "object", "additionalProperties": false, "required": ["ref", "digest"], "properties": { "ref": { "type": "string", "minLength": 1, "maxLength": 2048 }, "digest": { "$ref": "common.schema.json#/$defs/digest" } } }
+      }
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "operation": { "const": "model_call" } } }, "then": { "properties": { "model": true }, "required": ["model"] } }
+  ],
+  "$defs": {
+    "attributeValue": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }, { "type": "array", "items": { "type": "string" } }, { "type": "array", "items": { "type": "number" } }, { "type": "array", "items": { "type": "boolean" } }] },
+    "attributes": { "type": "object", "propertyNames": { "type": "string", "minLength": 1, "maxLength": 255 }, "additionalProperties": { "$ref": "#/$defs/attributeValue" } },
+    "workflow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["workflowId", "workflowType", "attemptId", "stepId", "stage", "layer", "role", "links"],
+      "properties": {
+        "workflowId": { "$ref": "common.schema.json#/$defs/identifier" }, "workflowType": { "$ref": "common.schema.json#/$defs/identifier" },
+        "attemptId": { "$ref": "common.schema.json#/$defs/identifier" }, "stepId": { "$ref": "common.schema.json#/$defs/identifier" },
+        "stage": { "$ref": "common.schema.json#/$defs/identifier" },
+        "layer": { "enum": ["workflow", "ticketing", "incident", "eil", "cli", "llm", "index", "tool", "mcp", "vcs", "ci", "artifact_store", "human", "other"] },
+        "role": { "enum": ["inception", "activity", "evidence", "artifact", "verification", "outcome"] },
+        "links": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/workflowLink" } }
+      }
+    },
+    "workflowLink": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sourceStepId", "relation", "targetStepId", "method", "confidence", "score", "calibration", "evidence", "candidateCount", "resolverVersion"],
+      "properties": {
+        "sourceStepId": { "$ref": "common.schema.json#/$defs/identifier" }, "relation": { "enum": ["parent", "caused_by", "derived_from", "used_evidence", "produced", "verified", "supersedes"] },
+        "targetStepId": { "$ref": "common.schema.json#/$defs/identifier" }, "method": { "enum": ["deterministic", "evidence"] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }, "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "calibration": { "type": "object", "additionalProperties": false, "required": ["calibrated"], "properties": { "calibrated": { "type": "boolean" }, "measuredPrecision": { "type": "number", "minimum": 0, "maximum": 1 }, "sampleSize": { "type": "integer", "minimum": 1 }, "calibrationId": { "$ref": "common.schema.json#/$defs/identifier" } } },
+        "evidence": { "type": "array", "minItems": 1, "items": { "type": "object", "additionalProperties": false, "required": ["kind", "detail"], "properties": { "kind": { "$ref": "common.schema.json#/$defs/identifier" }, "detail": { "$ref": "#/$defs/attributes" }, "weight": { "type": "number", "minimum": 0, "maximum": 1 } } } },
+        "candidateCount": { "type": "integer", "minimum": 1 }, "resolverVersion": { "$ref": "common.schema.json#/$defs/identifier" }
+      }
+    }
   }
 }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertValid, json, validators } from "../scripts/validation.mjs";
+import { assertValid, canonicalEventPolicyErrors, json, validators } from "../scripts/validation.mjs";
 
 test("scenario and all runners conform", async () => {
   const validate = await validators();
@@ -12,9 +12,24 @@ test("scenario and all runners conform", async () => {
 
 test("metadata-only receipt rejects raw query and content", async () => {
   const validate = await validators();
-  assert.equal(validate.receipt(await json("fixtures/valid/receipt-eil-search.json")), true);
-  assert.equal(validate.receipt(await json("fixtures/invalid/receipt-raw-query.json")), false);
-  assert.equal(validate.receipt(await json("fixtures/invalid/receipt-metadata-content.json")), false);
+  const receipt = await json("fixtures/valid/receipt-eil-search.json");
+  assert.equal(validate.receipt(receipt), true);
+  assert.deepEqual(canonicalEventPolicyErrors(receipt), []);
+  const rawQuery = structuredClone(receipt);
+  rawQuery.vendor.attributes.query = "payment retry policy";
+  assert.equal(validate.receipt(rawQuery), true, "raw-query shape remains wire-compatible");
+  assert.notEqual(canonicalEventPolicyErrors(rawQuery).length, 0, "demo policy rejects raw query");
+  const metadataContent = structuredClone(receipt);
+  metadataContent.capture.contentIncluded = true;
+  assert.equal(validate.receipt(metadataContent), false);
+});
+
+test("merged EIL emitter shape conforms without fabricated workflow", async () => {
+  const validate = await validators();
+  const receipt = await json("fixtures/valid/receipt-eil-emitter.json");
+  assertValid(validate.receipt, receipt, "EIL emitter receipt");
+  assert.equal("workflow" in receipt, false);
+  assert.deepEqual(canonicalEventPolicyErrors(receipt), []);
 });
 
 test("blocked Amp proof preserves facts without claiming acceptance", async () => {

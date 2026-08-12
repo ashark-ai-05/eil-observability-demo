@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { assertRejected, assertValid, json, root, validators } from "./validation.mjs";
+import { assertRejected, assertValid, canonicalEventPolicyErrors, json, root, validators } from "./validation.mjs";
 
 const validate = await validators();
 const valid = [
@@ -11,10 +11,15 @@ const valid = [
   [validate.runner, "runners/maas.json"],
   [validate.runnerProof, "recordings/amp-blocked-environment.json"],
   [validate.receipt, "fixtures/valid/receipt-eil-search.json"],
+  [validate.receipt, "fixtures/valid/receipt-eil-emitter.json"],
   [validate.acceptance, "acceptance/example-result.json"],
   [validate.recording, "recordings/example.json"]
 ];
 for (const [validator, path] of valid) assertValid(validator, await json(path), path);
+const validReceipt = await json("fixtures/valid/receipt-eil-search.json");
+if (canonicalEventPolicyErrors(validReceipt).length > 0) throw new Error("valid receipt violates canonical event policy");
+const emitterReceipt = await json("fixtures/valid/receipt-eil-emitter.json");
+if (canonicalEventPolicyErrors(emitterReceipt).length > 0) throw new Error("EIL emitter receipt violates canonical event policy");
 
 const acceptance = await json("acceptance/example-result.json");
 const requiredGates = new Set([
@@ -34,12 +39,17 @@ if (acceptance.passed !== acceptance.gates.every((gate) => gate.passed)) {
 }
 
 const invalid = [
-  [validate.receipt, "fixtures/invalid/receipt-raw-query.json"],
-  [validate.receipt, "fixtures/invalid/receipt-metadata-content.json"],
   [validate.scenario, "fixtures/invalid/scenario-secret.json"],
   [validate.acceptance, "fixtures/invalid/acceptance-missing-gates.json"]
 ];
 for (const [validator, path] of invalid) assertRejected(validator, await json(path), path);
+
+const rawQuery = structuredClone(validReceipt);
+rawQuery.vendor.attributes.query = "payment retry policy";
+if (!validate.receipt(rawQuery) || canonicalEventPolicyErrors(rawQuery).length === 0) throw new Error("raw query policy fixture was not rejected");
+const metadataContent = structuredClone(validReceipt);
+metadataContent.capture.contentIncluded = true;
+if (validate.receipt(metadataContent)) throw new Error("metadata content fixture was not rejected");
 
 // Demonstrate that a recording fixture has a stable content identity and that
 // deliberate corruption changes it. Live recordings will carry these digests.
@@ -48,4 +58,4 @@ const digest = createHash("sha256").update(bytes).digest("hex");
 const corrupted = createHash("sha256").update(Buffer.concat([bytes, Buffer.from("corrupt")])).digest("hex");
 if (digest === corrupted) throw new Error("recording corruption was not detected");
 
-console.log(`PASS phase0 foundation: ${valid.length} valid artifacts, ${invalid.length} expected rejections, digests verified`);
+console.log(`PASS phase0 foundation: ${valid.length} valid artifacts, ${invalid.length + 2} expected rejections, digests verified`);

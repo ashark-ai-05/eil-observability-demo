@@ -33,3 +33,34 @@ export function assertValid(validate, value, label) {
 export function assertRejected(validate, value, label) {
   if (validate(value)) throw new Error(`${label} unexpectedly accepted`);
 }
+
+const rawMetadataKeys = new Set([
+  "query", "prompt", "response", "completion", "content", "body", "text",
+  "reasoning", "terminal_output", "source_code", "code"
+]);
+
+/** Semantic refinements mirrored from the canonical Zod contract plus demo policy. */
+export function canonicalEventPolicyErrors(event) {
+  const errors = [];
+  if (Date.parse(event.timing.receivedAt) < Date.parse(event.timing.observedAt)) {
+    errors.push("receivedAt cannot be earlier than observedAt");
+  }
+  if (event.capture.mode === "metadata_only") {
+    for (const [scope, attributes] of [["attributes", event.attributes], ["vendor.attributes", event.vendor.attributes]]) {
+      for (const key of Object.keys(attributes)) {
+        if (rawMetadataKeys.has(key.toLowerCase())) errors.push(`${scope}.${key} contains raw content`);
+      }
+    }
+  }
+  for (const link of event.workflow?.links ?? []) {
+    if (link.sourceStepId !== event.workflow.stepId) errors.push("workflow link source differs from containing step");
+    if (link.targetStepId === event.workflow.stepId) errors.push("workflow step links to itself");
+    if (link.method === "deterministic" && (link.confidence !== 1 || link.score !== 1)) errors.push("deterministic link is not certain");
+    if (link.method === "evidence" && link.confidence === 1) errors.push("evidence link claims certainty");
+    if (link.method === "evidence" && link.calibration.calibrated &&
+        (link.calibration.measuredPrecision === undefined || link.calibration.sampleSize === undefined || link.calibration.calibrationId === undefined)) {
+      errors.push("calibrated evidence link lacks calibration facts");
+    }
+  }
+  return errors;
+}
