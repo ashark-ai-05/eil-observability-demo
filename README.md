@@ -6,6 +6,29 @@ intelligence and AI-effectiveness observability against the same incident.
 This repository orchestrates the products through a versioned wire contract. It
 does not copy their implementation or import either private package at runtime.
 
+## Before attempting the Amp proof
+
+```bash
+pnpm amp:probe            # no-spend environment checks
+pnpm amp:probe -- --live  # adds one minimal real turn (may spend on a working setup)
+```
+
+Reports, per check, whether the Amp CLI is installed, which build it is, whether
+the account is authenticated, whether it holds credits, and — with `--live` —
+whether Amp's server actually accepts that build.
+
+It exists because these failures are silent and mutually disguising. On the
+machine where the proof was first attempted, `amp update` reported the CLI as
+current while the server rejected that exact build with **HTTP 426**, surfacing
+only as "Unexpected error inside Amp CLI"; the account separately held **zero
+credits**; and behind an egress proxy the same command instead dies with a
+network timeout and no stream at all. The probe names which of those you have
+rather than leaving a failed run to be interpreted.
+
+A rejected build fails before any model call and costs nothing. A working build
+with credits *will* run the prompt and bill for it, which is why `--live` is
+opt-in.
+
 ## Current milestone
 
 The Phase 0 foundation is executable and credential-free. It validates:

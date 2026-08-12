@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "packageManager": "pnpm@10.32.1",
   "scripts": {
     "check": "pnpm test && pnpm demo:validate && pnpm demo:test",
@@ -12,7 +14,8 @@
     "demo:reset": "node scripts/demo-runner.mjs reset",
     "demo:run": "node scripts/demo-runner.mjs run",
     "demo:replay": "node scripts/demo-runner.mjs replay",
-    "demo:test": "node scripts/demo-runner.mjs all"
+    "demo:test": "node scripts/demo-runner.mjs all",
+    "amp:probe": "node scripts/amp-probe.mjs"
   },
   "dependencies": {
     "ajv": "^8.17.1",
