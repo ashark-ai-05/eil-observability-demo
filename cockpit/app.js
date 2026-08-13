@@ -16,6 +16,14 @@ const icons = { understand: "⌕", plan: "◇", implement: "⌘", verify: "✓",
 const artifactIcons = { ticket: "J", requirement: "C", code: "{ }", criteria: "AC", diff: "±", test: "T", commit: "G", build: "B", deployment: "D", approval: "A" };
 const total = data.summary.elapsedSeconds;
 const flow = data.steps.map((step) => `<div class="flow-node" data-stage="${step.stage}"><i>${step.order}</i><span><small>${step.system}</small><strong>${step.action}</strong></span></div>`).join("");
+let elapsedCursor = 0;
+const waterfall = data.steps.map((step) => {
+  const left = elapsedCursor / total * 100;
+  const width = step.durationSeconds / total * 100;
+  const activeWidth = step.activeSeconds / step.durationSeconds * 100;
+  elapsedCursor += step.durationSeconds;
+  return `<div class="waterfall-row"><span class="waterfall-label"><i>${step.order}</i><b>${step.action}</b></span><div class="waterfall-track"><div class="waterfall-span" style="left:${left}%;width:${width}%"><i style="width:${activeWidth}%"></i><b></b></div></div><strong>${duration(step.durationSeconds)}</strong></div>`;
+}).join("");
 
 const stageCards = data.stages.map((stage, index) => `
   <article class="stage-card stage-${stage.name}">
@@ -80,13 +88,18 @@ document.querySelector("#app").innerHTML = `
     <article class="panel"><div class="panel-title compact"><div><span>02 · VALUE & COST</span><h2>What the outcome consumed</h2></div><strong class="big-number">${money(data.summary.totalCostUsd)}</strong></div>${costRows}<div class="mini-grid"><div><small>Tokens</small><strong>${number(data.summary.tokenTotal)}</strong><span>${number(data.summary.tokenCached)} cached</span></div><div><small>Tool calls</small><strong>${data.summary.toolCalls}</strong><span>${data.summary.retries} retries</span></div><div><small>Accepted outcomes</small><strong>1</strong><span>${money(data.summary.totalCostUsd)} / outcome</span></div></div><p class="provenance"><b>ESTIMATED</b> Provider usage × ${data.pricing.version}; not a billing record.</p></article>
     <article class="panel"><div class="panel-title compact"><div><span>03 · BOTTLENECK</span><h2>Most time was not reasoning</h2></div><strong class="big-number">${pct(data.summary.waitSeconds / data.summary.elapsedSeconds)}</strong></div><div class="split"><i style="width:${data.summary.activeSeconds / data.summary.elapsedSeconds * 100}%"></i><b></b></div><div class="split-label"><span><i class="legend-active"></i>Active · ${duration(data.summary.activeSeconds)}</span><span><i class="legend-wait"></i>Wait · ${duration(data.summary.waitSeconds)}</span></div><div class="callout"><i>!</i><span><strong>Largest delay: production approval</strong><small>11m 25s of the 12m approval span was human wait.</small></span></div></article>
   </section>
+  <section class="panel waterfall-panel">
+    <div class="panel-title"><div><span>04 · POSITIONED WATERFALL</span><h2>Where the delivery time went</h2><p>Each bar begins where the span happened. Mint is active work; slate is queue, compute or human wait.</p></div><div class="waterfall-axis"><span>09:00</span><span>09:13</span><span>09:26</span><span>09:39</span><span>09:52</span></div></div>
+    <div class="waterfall">${waterfall}</div>
+    <div class="waterfall-callout"><b>Largest single delay</b><span>Production approval · 11m 25s of the 12m span was human wait</span></div>
+  </section>
   <section class="panel trace-panel">
-    <div class="panel-title"><div><span>04 · DEVELOPER VIEW</span><h2>Trace, evidence and resource ledger</h2><p>Every number resolves to one simulated span and one artifact.</p></div><div class="trace-summary"><b>${data.steps.length}</b> spans <b>${data.lineage.length}</b> causal links</div></div>
+    <div class="panel-title"><div><span>05 · DEVELOPER VIEW</span><h2>Trace, evidence and resource ledger</h2><p>Every number resolves to one simulated span and one artifact.</p></div><div class="trace-summary"><b>${data.steps.length}</b> spans <b>${data.lineage.length}</b> causal links</div></div>
     <div class="trace-head"><span>Span</span><span>Evidence artifact</span></div>
     <div class="timeline">${timeline}</div>
   </section>
   <section class="measured-output" id="measured-output">
-    <div><span>05 · MEASURED OUTPUT</span><h2>One accepted production outcome</h2><p>Final roll-up from the same 11 spans above. No separate spreadsheet and no hidden denominator.</p></div>
+    <div><span>06 · MEASURED OUTPUT</span><h2>One accepted production outcome</h2><p>Final roll-up from the same 11 spans above. No separate spreadsheet and no hidden denominator.</p></div>
     <div class="output-grid"><article><small>Elapsed</small><strong>${duration(data.summary.elapsedSeconds)}</strong></article><article><small>Active / wait</small><strong>${duration(data.summary.activeSeconds)} <i>/</i> ${duration(data.summary.waitSeconds)}</strong></article><article><small>Tokens</small><strong>${number(data.summary.tokenTotal)}</strong></article><article><small>Tools / retries</small><strong>${data.summary.toolCalls} <i>/</i> ${data.summary.retries}</strong></article><article><small>Total estimated cost</small><strong>${money(data.summary.totalCostUsd)}</strong></article><article><small>Outcome proof</small><strong class="good">Shipped · ${pct(data.summary.attributionCoverage)}</strong></article></div>
     <footer><span>${data.pricing.version} · ESTIMATED COST</span><span>Every value resolves to the simulated trace</span></footer>
   </section>

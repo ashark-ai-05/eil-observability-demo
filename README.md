@@ -340,7 +340,7 @@ Prerequisites: Node.js 22 or newer and pnpm 10.32.1.
 For the audience-facing delivery intelligence demo:
 
 ```bash
-pnpm demo:present  # narrated terminal journey; add -- --pause to step through
+pnpm journey       # narrated terminal journey; add -- --pause to step through
 pnpm cockpit
 ```
 
@@ -353,7 +353,7 @@ calls, retries, resource use, estimated cost and linked artifacts. The
 simulation is a product-experience demonstration; it is not evidence of live
 corporate Jira, Confluence, Bamboo or deployment connectivity.
 
-`pnpm demo:present` follows the same presentation pattern as EIL's
+`pnpm journey` follows the same presentation pattern as EIL's
 `demo/eil.mjs`: it names what each step demonstrates, shows the evidence
 artifact, and prints the measured elapsed/active/wait, token, tool-call and cost
 figures before moving on. It ends with one measured-output summary derived from
