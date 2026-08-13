@@ -15,7 +15,7 @@ const server = createServer(async (request, response) => {
       return;
     }
     const relative = request.url === "/" ? "index.html" : request.url.slice(1);
-    if (!/^(index\.html|app\.js|styles\.css)$/.test(relative)) throw new Error("not found");
+    if (!/^(index\.html|app\.js|styles\.css|presenter\.css)$/.test(relative)) throw new Error("not found");
     response.writeHead(200, { "content-type": types[extname(relative)] ?? "application/octet-stream" });
     response.end(await readFile(resolve(root, "cockpit", relative)));
   } catch {
