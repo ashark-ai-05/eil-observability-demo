@@ -115,55 +115,158 @@ pnpm amp:probe
 
 #### GitHub-blocked / Stash transfer
 
-Download the three Git bundles, checksum file and transfer README from the
-[latest corporate transfer release](https://github.com/ashark-ai-05/eil-observability-demo/releases/latest).
-Release assets live outside Git history, so they do not make every future clone
-carry large, stale or recursively nested bundles.
+**Download one file, not three:**
 
-Verify the downloaded files before importing them:
+<https://github.com/ashark-ai-05/eil-observability-demo/releases/download/corp-transfer-2/corp-transfer-2.zip>
+
+It contains all three Git bundles, `SHA256SUMS.txt`, and
+`TRANSFER-README.md`. Release assets live outside Git history, so they do not
+make every future clone carry large, stale or recursively nested bundles.
+
+Prerequisites on the corporate machine: Git, Node.js 22 or newer, pnpm 10.32.1,
+and access to the corporate npm registry (normally Nexus or Artifactory). If the
+registry uses a corporate CA, configure Node/pnpm to trust it before installing.
+
+##### 1. Unpack and verify the one download
+
+macOS or Linux:
 
 ```bash
+unzip corp-transfer-2.zip -d corp-transfer-2
+cd corp-transfer-2
 shasum -a 256 -c SHA256SUMS.txt  # macOS
-# or: sha256sum -c SHA256SUMS.txt  # Linux
+# or: sha256sum -c SHA256SUMS.txt # Linux
 
 git bundle list-heads enterprise-intelligence-layer.bundle
 git bundle list-heads enterprise-ai-observability.bundle
 git bundle list-heads eil-observability-demo.bundle
 ```
 
-Compare the three reported `refs/heads/main` revisions with `TRANSFER-README.md`.
+Windows PowerShell:
+
+```powershell
+Expand-Archive .\corp-transfer-2.zip -DestinationPath .\corp-transfer-2
+Set-Location .\corp-transfer-2
+Get-FileHash -Algorithm SHA256 .\*.bundle
+git bundle list-heads .\enterprise-intelligence-layer.bundle
+git bundle list-heads .\enterprise-ai-observability.bundle
+git bundle list-heads .\eil-observability-demo.bundle
+```
+
+Compare the hashes with `SHA256SUMS.txt`. The reported `refs/heads/main`
+revisions must be:
+
+```text
+enterprise-intelligence-layer  c8380bd1ff1a49be3cd7bcdcff0e59a05fcc1cf1
+enterprise-ai-observability    1160abe1794784fcbd045738d37ba9b24aab7b75
+eil-observability-demo         a56cdadb7699e827038bd00fe6d019d7ef9c0966
+```
+
+##### 2. Restore the three repositories locally
+
+Run from the unpacked `corp-transfer-2` directory:
+
+```bash
+git clone enterprise-intelligence-layer.bundle enterprise-intelligence-layer
+git clone enterprise-ai-observability.bundle enterprise-ai-observability
+git clone eil-observability-demo.bundle eil-observability-demo
+
+git -C enterprise-intelligence-layer rev-parse HEAD
+git -C enterprise-ai-observability rev-parse HEAD
+git -C eil-observability-demo rev-parse HEAD
+```
+
+Those three values must match the revisions above. The repositories are now
+siblings in the layout expected by the integration test.
+
+##### 3. Optional: publish the preserved repositories to Stash
 
 Create three new, empty Stash repositories. Restore and publish each bundle:
 
 ```bash
-git clone enterprise-intelligence-layer.bundle enterprise-intelligence-layer
 cd enterprise-intelligence-layer
 git remote set-url origin <enterprise-intelligence-layer-stash-url>
 git push origin --all
 git push origin --tags
 cd ..
 
-git clone enterprise-ai-observability.bundle enterprise-ai-observability
 cd enterprise-ai-observability
 git remote set-url origin <enterprise-ai-observability-stash-url>
 git push origin --all
 git push origin --tags
 cd ..
 
-git clone eil-observability-demo.bundle eil-observability-demo
 cd eil-observability-demo
 git remote set-url origin <eil-observability-demo-stash-url>
 git push origin --all
 git push origin --tags
+cd ..
 ```
 
 Do not initialize and commit raw GitHub source ZIPs: that produces new commit
 IDs and makes the pinned integration fail. The Stash destinations above must be
 empty so the preserved histories remain authoritative.
 
-After cloning the three Stash repositories as siblings, configure the corporate
-npm registry/CA and run the normal verification sequence. GitHub Actions do not
-run in Stash; reproduce `pnpm check` and `pnpm test:integration` in Bamboo.
+You can test the local restored repositories immediately; uploading to Stash is
+not required first. If you do upload them, later clone the three Stash
+repositories into the same sibling layout.
+
+##### 4. Install, build, and test the real product connection
+
+Run from the parent directory containing the three repositories:
+
+```bash
+cd enterprise-intelligence-layer
+pnpm install --frozen-lockfile
+pnpm build
+pnpm doctor
+
+cd ../enterprise-ai-observability
+pnpm install --frozen-lockfile
+pnpm build
+
+cd ../eil-observability-demo
+pnpm install --frozen-lockfile
+pnpm check
+EIL_REPO=../enterprise-intelligence-layer \
+OBSERVABILITY_REPO=../enterprise-ai-observability \
+pnpm test:integration
+pnpm amp:probe
+```
+
+PowerShell uses the same commands except for the two environment variables:
+
+```powershell
+$env:EIL_REPO = "../enterprise-intelligence-layer"
+$env:OBSERVABILITY_REPO = "../enterprise-ai-observability"
+pnpm test:integration
+```
+
+The required successful integration line is:
+
+```text
+eil c8380bd1 -> observability 1160abe1: eil/retrieval, capture metadata_only, idempotent retry ok
+```
+
+`pnpm doctor` and `pnpm amp:probe` are diagnostics; a corporate proxy or an Amp
+account/build issue can make them report a blocker without invalidating a green
+local product integration test.
+
+##### 5. Open the simulated delivery command center
+
+From `eil-observability-demo`:
+
+```bash
+pnpm cockpit
+```
+
+Keep that terminal running and open <http://127.0.0.1:4173>. The page is
+explicitly labelled **SIMULATED DATA** and shows the Jira → Confluence → code →
+acceptance criteria → implementation → commit → Bamboo → TST → PRD flow.
+
+GitHub Actions do not run in Stash. Reproduce `pnpm check`, both product builds,
+and `pnpm test:integration` in Bamboo when turning this manual test into a
+corporate pipeline.
 
 The integration test should report that real EIL emitted an `eil/retrieval`
 event that real Observability ingested with metadata-only capture and an
