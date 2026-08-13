@@ -125,9 +125,9 @@ are not pnpm subcommands, so they are unaffected.
 
 **Download one file, not three:**
 
-<https://github.com/ashark-ai-05/eil-observability-demo/releases/download/corp-transfer-2/corp-transfer-2.zip>
+<https://github.com/ashark-ai-05/eil-observability-demo/releases/latest/download/corp-transfer.zip>
 
-It contains all three Git bundles, `SHA256SUMS.txt`, and
+The latest `corp-transfer.zip` contains all three Git bundles, `SHA256SUMS.txt`, and
 `TRANSFER-README.md`. Release assets live outside Git history, so they do not
 make every future clone carry large, stale or recursively nested bundles.
 
