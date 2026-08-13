@@ -7,6 +7,26 @@ Fast conformance checks use a versioned wire contract without depending on
 either product. The integration test separately loads pinned, built checkouts of
 both real products and fails if either checkout is missing, stale, or unbuilt.
 
+## Seeing it work
+
+```bash
+EIL_REPO=/path/to/enterprise-intelligence-layer \
+OBSERVABILITY_REPO=/path/to/enterprise-ai-observability \
+pnpm report
+```
+
+Runs both real products and prints what happened: the estate as ingested, a
+governed search, the same search as someone without access, the receipt EIL
+emitted and Observability persisted, and a scorecard of what works.
+
+**The two broken capabilities are on that scorecard**, in the same type as the
+working ones — search cannot resolve identifiers, and the system never declines
+to answer. That is deliberate. A report that cannot show a bad number should not
+be trusted with a good one, and an audience that spots the omission itself will
+disbelieve everything else on the page.
+
+Nothing is pre-recorded; re-running re-derives every figure.
+
 ## The real integration test
 
 Everything else here validates hand-written fixtures against a vendored copy of
