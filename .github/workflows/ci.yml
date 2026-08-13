@@ -46,13 +46,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ashark-ai-05/enterprise-intelligence-layer
-          ref: 3a97539b335662937b6c6e73468646dc2a52497f
+          ref: c8380bd1ff1a49be3cd7bcdcff0e59a05fcc1cf1
           path: .products/eil
       - name: Check out enterprise-ai-observability
         uses: actions/checkout@v4
         with:
           repository: ashark-ai-05/enterprise-ai-observability
-          ref: c105e126298b33ceb1932be622f960c0a9e2e5d1
+          ref: 1160abe1794784fcbd045738d37ba9b24aab7b75
           path: .products/observability
 
       - name: Build both products
