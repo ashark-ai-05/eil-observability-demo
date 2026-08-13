@@ -6,6 +6,34 @@ intelligence and AI-effectiveness observability against the same incident.
 This repository orchestrates the products through a versioned wire contract. It
 does not copy their implementation or import either private package at runtime.
 
+## The real integration test
+
+Everything else here validates hand-written fixtures against a vendored copy of
+the wire contract. That proves the two contracts agree on paper; it does not
+prove the two products connect, because neither of them runs.
+
+This one runs both:
+
+```bash
+EIL_REPO=/path/to/enterprise-intelligence-layer \
+OBSERVABILITY_REPO=/path/to/enterprise-ai-observability \
+pnpm test:integration
+```
+
+Real EIL seeds a corpus and answers a real MCP `search_enterprise` call with its
+real emitter attached. The **exact bytes** that emitter writes go to real
+Observability migrations and `ingestEvent`. The persisted row is read back and
+asserted: `source_kind=eil`, `operation=retrieval`, `capture_mode=metadata_only`,
+a `query_digest` present, **the raw query absent**, and a retry that is
+idempotent. Nothing is constructed, reshaped or normalised along the way.
+
+It **fails** — never skips — when a checkout, an export or a built artifact is
+missing. Verified by removing each: a missing checkout, an unbuilt product and an
+injected raw-query leak each produce a distinct failure. A green run that
+silently proved nothing is the failure mode this repository exists to avoid.
+
+Keep `pnpm check` for fast schema conformance; it needs no checkouts.
+
 ## Before attempting the Amp proof
 
 ```bash
