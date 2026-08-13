@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EIL — Observability Plane</title>
+<style>
+  :root {
+    --ink:#090e18; --ink-2:#0c1322; --panel:#10192b; --panel-2:#131e33; --line:#223148; --line-soft:#1a2740;
+    --text:#cbd7e9; --muted:#6f819e; --faint:#46587a; --lex:#5cc2ef; --vec:#efab54; --fuse:#eef4fd; --ok:#5ccb8e; --warn:#ef7d6b;
+    --shadow: 0 1px 0 #ffffff08, 0 12px 34px -20px #000000cc;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --r:10px; color-scheme:dark;
+    --cols: repeat(3, minmax(330px, 1fr));
+    --step: 26px;   /* each plane cascades this far below the one upstream of it */
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --ink:#eef1f6; --ink-2:#e7ecf3; --panel:#ffffff; --panel-2:#f2f5fa; --line:#cbd4e2; --line-soft:#dbe2ec;
+      --text:#16202f; --muted:#5d6c85; --faint:#8794a8; --lex:#1f8fc7; --vec:#c07914; --fuse:#0d1524; --ok:#1f9d63; --warn:#c0442f;
+      --shadow: 0 1px 0 #ffffff, 0 10px 26px -20px #23324a55; color-scheme:light; }
+  }
+  :root[data-theme="dark"]{ --ink:#090e18; --ink-2:#0c1322; --panel:#10192b; --panel-2:#131e33; --line:#223148; --line-soft:#1a2740;
+    --text:#cbd7e9; --muted:#6f819e; --faint:#46587a; --lex:#5cc2ef; --vec:#efab54; --fuse:#eef4fd; --ok:#5ccb8e; --warn:#ef7d6b;
+    --shadow: 0 1px 0 #ffffff08, 0 12px 34px -20px #000000cc; color-scheme:dark; }
+  :root[data-theme="light"]{ --ink:#eef1f6; --ink-2:#e7ecf3; --panel:#ffffff; --panel-2:#f2f5fa; --line:#cbd4e2; --line-soft:#dbe2ec;
+    --text:#16202f; --muted:#5d6c85; --faint:#8794a8; --lex:#1f8fc7; --vec:#c07914; --fuse:#0d1524; --ok:#1f9d63; --warn:#c0442f;
+    --shadow: 0 1px 0 #ffffff, 0 10px 26px -20px #23324a55; color-scheme:light; }
+
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:var(--ink); color:var(--text); font-family:var(--mono); font-size:15px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; letter-spacing:-0.01em;
+    background-image: radial-gradient(110% 70% at 88% -8%, color-mix(in oklab, var(--lex) 8%, transparent), transparent 60%),
+      radial-gradient(110% 70% at 6% 108%, color-mix(in oklab, var(--vec) 7%, transparent), transparent 55%);
+    background-attachment:fixed; }
+  .wrap { max-width:1340px; margin:0 auto; padding:clamp(20px,3vw,40px) clamp(14px,3vw,30px) 56px; }
+
+  header { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap; }
+  .mark { display:flex; align-items:center; gap:12px; }
+  .glyph { width:32px; height:32px; flex:none; }
+  .word { font-size:19px; font-weight:700; letter-spacing:0.02em; }
+  .word span { color:var(--muted); font-weight:500; }
+  .tag { color:var(--muted); font-size:13px; margin:6px 0 0; max-width:66ch; letter-spacing:0; line-height:1.55; }
+  .tag b { color:var(--text); font-weight:600; }
+  .toolbar { display:flex; align-items:center; gap:9px; flex-wrap:wrap; justify-content:flex-end; }
+  .stat { font-size:11px; color:var(--faint); letter-spacing:0.04em; text-align:right; line-height:1.7; width:100%; }
+  .stat b { color:var(--ok); font-weight:600; }
+
+  .btn { font-family:var(--mono); font-size:11px; letter-spacing:0.07em; text-transform:uppercase; color:var(--muted);
+    background:var(--panel); border:1px solid var(--line); padding:8px 12px; border-radius:7px; cursor:pointer;
+    user-select:none; white-space:nowrap; transition:color .15s, border-color .15s, background .15s; }
+  .btn:hover { color:var(--text); border-color:var(--muted); }
+  .btn.pri { color:var(--lex); border-color:color-mix(in oklab, var(--lex) 42%, var(--line)); }
+  .btn.pri:hover { background:var(--panel-2); border-color:var(--lex); }
+  .btn:focus-visible { outline:2px solid var(--lex); outline-offset:2px; }
+
+  nav.xref { display:flex; gap:14px; flex-wrap:wrap; margin:14px 0 0; font-size:11.5px; letter-spacing:0.02em; }
+  nav.xref a { color:var(--faint); text-decoration:none; border-bottom:1px dashed var(--line); padding-bottom:1px; }
+  nav.xref a:hover { color:var(--lex); border-color:var(--lex); }
+
+  .controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:20px 0 6px; }
+  .hint { font-size:11.5px; color:var(--faint); letter-spacing:0.02em; margin:0; }
+  .hint b { color:var(--lex); font-weight:600; }
+
+  /* ── canvas ───────────────────────────────────────────────
+     Padding on all four sides is working space: the left margin carries the
+     loop's return lane, the right margin carries the row-1 → row-2 bus. */
+  .scroll { overflow-x:auto; overflow-y:hidden; padding-bottom:4px; }
+  .canvas { position:relative; min-width:1200px; padding:34px 46px 54px 44px; }
+  /* behind the boxes, so rails read as wiring passing under the planes */
+  .edges { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; z-index:0; }
+  .grid3 { display:grid; grid-template-columns:var(--cols); column-gap:56px; row-gap:20px; }
+  .row2 { margin-top:52px; }
+
+  /* the gap also has to fit an arrowhead on the stubs between stacked nodes */
+  .plane { display:flex; flex-direction:column; gap:18px; position:relative; z-index:1; min-width:0; }
+  .plane > h3 { margin:0 0 2px; font-size:10.5px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--faint);
+    display:flex; align-items:baseline; gap:8px; }
+  .plane > h3 .pn { color:var(--line); font-variant-numeric:tabular-nums; }
+  .plane > h3 .sub { margin-left:auto; font-weight:400; letter-spacing:0.02em; text-transform:none; font-size:10.5px; color:var(--line); }
+  /* Cascade: each plane sits a step below the one upstream, so cross-column
+     wires get vertical travel instead of lying flat on their neighbours.
+     Row 2 runs right-to-left, so its cascade is mirrored — the descent is
+     continuous all the way along the snake. */
+  .row1 .plane:nth-child(2) { padding-top:calc(var(--step) * 1); }
+  .row1 .plane:nth-child(3) { padding-top:calc(var(--step) * 2); }
+  .row2 .plane:nth-child(2) { padding-top:calc(var(--step) * 1); }
+  .row2 .plane:nth-child(1) { padding-top:calc(var(--step) * 2); }
+
+  .pnote { font-size:11px; color:var(--faint); letter-spacing:0; line-height:1.5; margin:3px 2px 0; max-width:44ch; }
+  .pnote b { color:var(--muted); font-weight:600; }
+
+  .node { background:var(--panel); border:1px solid var(--line); border-radius:9px; box-shadow:var(--shadow); }
+  .node.acc { border-color:color-mix(in oklab, var(--ok) 34%, var(--line)); }
+  .nh { display:flex; align-items:center; gap:9px; width:100%; text-align:left; padding:11px 13px; cursor:pointer;
+    background:none; border:0; border-radius:9px; color:inherit; font:inherit; font-size:12.5px; letter-spacing:0.01em; }
+  .nh:hover { background:var(--panel-2); }
+  .nh:focus-visible { outline:2px solid var(--lex); outline-offset:2px; }
+  .nh .lbl { font-weight:600; color:var(--text); flex:none; }
+  /* the collapsed one-liner: enough that the map reads without opening anything */
+  .nh .ns { color:var(--faint); font-weight:400; font-size:11px; letter-spacing:0; line-height:1.35;
+    flex:1 1 auto; min-width:0; }
+  .nh .sub { color:var(--faint); font-weight:400; font-size:11px; letter-spacing:0; }
+  .nh .cv { margin-left:auto; color:var(--faint); font-size:11px; flex:none; transition:transform .3s cubic-bezier(.4,0,.2,1), color .15s; }
+  .node.open > .nh { background:var(--panel-2); border-radius:9px 9px 0 0; }
+  .node.open > .nh .cv { transform:rotate(90deg); color:var(--lex); }
+
+  .dot { width:6px; height:6px; border-radius:50%; flex:none; background:var(--muted); }
+  .dot.lex { background:var(--lex); box-shadow:0 0 7px var(--lex); }
+  .dot.vec { background:var(--vec); box-shadow:0 0 7px var(--vec); }
+  .dot.fuse{ background:var(--fuse); box-shadow:0 0 7px var(--fuse); }
+  .dot.ok  { background:var(--ok);  box-shadow:0 0 7px var(--ok); }
+
+  /* 0fr → 1fr animates to the content's real height, so the router lands on the true box edge */
+  .nb { display:grid; grid-template-rows:0fr; transition:grid-template-rows .34s cubic-bezier(.4,0,.2,1); }
+  .node.open .nb { grid-template-rows:1fr; }
+  .nb > .nbi { overflow:hidden; min-height:0; }
+  .nb .pad { padding:2px 13px 13px; display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+  .nb .pad > .txt { flex:1 1 190px; min-width:0; }
+  html:not(.js) .nb { grid-template-rows:1fr; }
+  html:not(.js) .cv { display:none; }
+
+  /* Vignettes keep their drawn size instead of scaling up into the wider column */
+  .vig { display:block; width:100%; max-width:190px; height:auto; flex:0 0 auto; }
+  .vig.wide { max-width:330px; }
+  .vig text { font-family:var(--mono); }
+  .cap { font-size:11.5px; color:var(--muted); line-height:1.55; letter-spacing:0; margin:0; }
+  .cap + .cap { margin-top:7px; }
+  .cap b { color:var(--text); font-weight:600; }
+  .cap .kx { color:var(--lex); } .cap .kv { color:var(--vec); } .cap .ko { color:var(--ok); } .cap .kw { color:var(--warn); }
+  .cap code { font-size:11px; color:var(--muted); }
+
+  /* ── loop lane ─────────────────────────────────────────── */
+  .lane { margin-top:44px; align-items:start; }
+  .lane .obs { grid-column:1; }
+  .lane .loopmsg { grid-column:2 / span 2; display:flex; align-items:center; gap:10px; align-self:center;
+    font-size:12px; color:var(--lex); letter-spacing:0.01em; }
+  .lane .loopmsg b { font-weight:700; }
+
+  /* ── governance floor ──────────────────────────────────── */
+  .floorwrap { min-width:1200px; padding:0 46px 0 44px; }
+  .govticks { margin-top:2px; height:20px; }
+  .govticks i { display:block; height:100%; margin:0 auto; width:0;
+    border-left:2px dashed color-mix(in oklab, var(--ok) 34%, var(--line)); }
+  .floor { border:1px solid color-mix(in oklab, var(--ok) 36%, var(--line)); border-radius:9px;
+    background:linear-gradient(180deg, color-mix(in oklab, var(--ok) 7%, var(--panel)), var(--panel)); box-shadow:var(--shadow); }
+  .floor .nh .lbl { color:var(--ok); letter-spacing:0.11em; text-transform:uppercase; font-size:11.5px; }
+  .floor .nh .sub { color:var(--muted); font-size:11px; margin-left:auto; }
+  .floor .nh .cv { margin-left:14px; }
+  .floor .pad { max-width:900px; }
+
+  /* ── legend / foot ─────────────────────────────────────── */
+  .legend { display:flex; gap:20px 34px; flex-wrap:wrap; margin-top:30px; padding-top:20px; border-top:1px solid var(--line-soft); }
+  .legend .grp { display:flex; flex-direction:column; gap:5px; }
+  .legend h4 { margin:0 0 3px; font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase; color:var(--faint); font-weight:600; }
+  .legend .li { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .legend .li b { color:var(--text); font-weight:600; }
+  .legend .wire { width:26px; height:2px; flex:none; border-radius:2px; }
+  .foot { margin-top:26px; font-size:11px; color:var(--faint); display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .foot code { color:var(--muted); }
+
+  /* ── motion ────────────────────────────────────────────── */
+  @keyframes dash { to { stroke-dashoffset:-1000; } }
+  @keyframes floaty { 0%,100%{ opacity:.4 } 50%{ opacity:1 } }
+  @keyframes draw { from { stroke-dashoffset:var(--len,200); } to { stroke-dashoffset:0; } }
+  .edge { fill:none; stroke-width:1.5; stroke-linecap:round; transition:opacity .18s, stroke-width .18s; }
+  .edge.k-faint { stroke:var(--faint); }
+  .edge.k-lex   { stroke:var(--lex); }
+  .edge.k-vec   { stroke:var(--vec); }
+  .edge.k-fuse  { stroke:var(--fuse); stroke-width:1.8; }
+  .edge.k-ok    { stroke:var(--ok); }
+  .edge.k-loop  { stroke:var(--lex); stroke-width:1.8; opacity:.85; }
+  .tip { fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;
+    transition:opacity .18s; }
+  .tip.k-faint { stroke:var(--faint); } .tip.k-lex { stroke:var(--lex); }
+  .tip.k-vec { stroke:var(--vec); } .tip.k-fuse { stroke:var(--fuse); }
+  .tip.k-ok { stroke:var(--ok); } .tip.k-loop { stroke:var(--lex); }
+
+  /* ── focus: hovering a node lights its wiring and fades everything else ── */
+  .canvas.focusing .edge, .canvas.focusing .tip { opacity:.12; }
+  .canvas.focusing .edge.lit { opacity:1; stroke-width:2.4; }
+  .canvas.focusing .tip.lit  { opacity:1; }
+  .canvas.focusing .node { opacity:.34; transition:opacity .18s; }
+  .canvas.focusing .node.lit { opacity:1; }
+  .canvas.focusing .node.src { opacity:1; box-shadow:var(--shadow), 0 0 0 1px var(--lex); }
+  .canvas.focusing .plane > h3, .canvas.focusing .pnote { opacity:.34; transition:opacity .18s; }
+  @media (prefers-reduced-motion: reduce) {
+    .edge, .tip, .canvas.focusing .node { transition:none; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .edge { stroke-dasharray:5 8; animation:dash 14s linear infinite; }
+    .edge.k-loop { stroke-dasharray:5 7; animation:dash 18s linear infinite; }
+    .signal { stroke-dasharray:6 9; animation:dash 13s linear infinite; }
+    .pulse { animation:floaty 2.6s ease-in-out infinite; }
+    .spark { stroke-dasharray:var(--len,200); animation:draw 4.5s ease-in-out infinite alternate; }
+  }
+
+  /* ── narrow: fold to one column, wires re-route themselves ── */
+  @media (max-width: 900px) {
+    :root { --cols: minmax(0, 1fr); --step: 0px; }
+    .canvas { min-width:0; padding:20px 16px 40px; }
+    .floorwrap { min-width:0; padding:0; }
+    .scroll { overflow-x:visible; }
+    .grid3 { column-gap:14px; row-gap:16px; }
+    .row2 { margin-top:16px; }
+    .lane { margin-top:16px; }
+    .lane .obs, .lane .loopmsg { grid-column:1; }
+    .plane { gap:10px; }
+    .govticks { display:none; }
+    .nb .pad { gap:10px; }
+    body { font-size:14px; }
+  }
+</style>
+<style>
+  .lede { max-width: 62ch; }
+  .real { color: var(--ok); }
+  .stub { color: var(--warn); }
+  .tag { font: 600 10px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase;
+         border:1px solid currentColor; border-radius:4px; padding:3px 6px; margin-left:8px; }
+  table.m { width:100%; border-collapse:collapse; font:12px/1.6 var(--mono); margin-top:10px; }
+  table.m th { text-align:left; color:var(--faint); font-weight:500; padding:4px 10px 4px 0; border-bottom:1px solid var(--line-soft); }
+  table.m td { padding:5px 10px 5px 0; border-bottom:1px solid var(--line-soft); color:var(--muted); vertical-align:top; }
+  table.m td b { color:var(--text); font-weight:600; }
+</style>
+</head>
+<body>
+  <header class="top">
+    <h1><span class="mk">EIL</span> · observability plane</h1>
+    <p class="lede">The map's stage <b>07</b>, opened up. Every agent action becomes a
+    canonical event; events become spans; spans become the four numbers an executive reads.
+    The rule underneath all of it: <b>a number that cannot be measured is reported as
+    unknown, never as zero.</b></p>
+    <nav class="xlinks">
+      <a href="/platform/system-map.html">↗ system map</a>
+      <a href="/">↗ cockpit</a>
+    </nav>
+  </header>
+
+  <main class="canvas">
+    <div class="grid3 row1">
+
+      <div class="plane">
+        <h3><span class="pn">01</span>Capture<span class="sub">one contract, every producer</span></h3>
+
+        <section class="node" data-id="obs.contract">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Canonical event</span><span class="ns">schemaVersion 1 · strict</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">One <span class="kx">canonicalEventSchema</span> for every producer — Copilot, Amp, MaaS, the harness, the egress proxy and EIL. Strict: an unknown field is a rejection, not a warning.</p>
+          <table class="m">
+            <tr><td><b>identity</b></td><td>principal, actor type, team</td></tr>
+            <tr><td><b>trace</b></td><td>run / trace / span / parent span</td></tr>
+            <tr><td><b>workflow</b></td><td>workflow, attempt, step, stage, layer, role</td></tr>
+            <tr><td><b>capture</b></td><td>metadata_only or approved_content, with policy version</td></tr>
+            <tr><td><b>usage</b></td><td>input / output / cache tokens, provider-reported cost</td></tr>
+          </table></div>
+          </div></div></div>
+        </section>
+
+        <section class="node" data-id="obs.capture">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Metadata-only by default</span><span class="ns">the query never lands</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">Capture mode is enforced by the schema, not by convention: <span class="kx">metadata_only</span> with <span class="kx">contentIncluded: true</span> is refused at validation.</p>
+          <p class="cap">A retrieval records a <b>sha256 digest of the query</b> and never the query. Verified by injecting a raw query into an emitted event and asserting the store rejects it.</p></div>
+          </div></div></div>
+        </section>
+
+        <section class="node" data-id="obs.idempotent">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Idempotent receipts</span><span class="ns">append-only, restatable</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">An <span class="kx">idempotencyKey</span> makes a retry a no-op; a <span class="kx">revisionDigest</span> makes a correction a new row rather than an overwrite. Nothing is ever mutated in place, so the ledger can be replayed.</p></div>
+          </div></div></div>
+        </section>
+      </div>
+
+      <div class="plane">
+        <h3><span class="pn">02</span>Measure<span class="sub">derived, never asserted</span></h3>
+
+        <section class="node" data-id="obs.span">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Span duration</span><span class="ns">from its own start and end</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">A span is measured from its <b>own</b> started and terminal observation — not from the gap between consecutive steps, which also contains queue time, CI scheduling and human review.</p>
+          <p class="cap">An incomplete pair returns <span class="kx">known: false</span> with a reason: <span class="stub">no_terminal_observation</span>, <span class="stub">no_started_observation</span>, <span class="stub">terminal_precedes_started</span>. <b>Never 0.</b> An in-flight or crashed span must not render as the fastest step on the page.</p></div>
+          </div></div></div>
+        </section>
+
+        <section class="node" data-id="obs.workwait">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Work versus wait</span><span class="ns">the number that reframes the spend</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">Work is the sum of measured spans. Wait is elapsed minus work. On the reference run that split is <b>32% active, 68% waiting</b> — which turns an AI-spend conversation into a throughput conversation.</p>
+          <table class="m">
+            <tr><td><b>one unmeasurable span</b></td><td>makes the whole work total unknown — summing only the measurable ones understates work, and understated work <i>overstates</i> wait</td></tr>
+            <tr><td><b>overlapping spans</b></td><td>report <span class="kx">work_exceeds_elapsed</span>, not a negative wait bar</td></tr>
+          </table></div>
+          </div></div></div>
+        </section>
+
+        <section class="node" data-id="obs.cost">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Versioned pricebook</span><span class="ns">priced at the time, not today</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">Provider-reported cost is persisted as given. Internal cost is calculated from a <b>versioned</b> price book, and the version active at request time is stored with it — history is never re-priced at today's rates.</p>
+          <p class="cap">Provenance is carried, not flattened: <span class="real">reported</span>, <span class="kx">estimated</span>, or <span class="stub">unknown</span>. A missing price shows <b>unknown</b>, never <b>$0</b>.</p></div>
+          </div></div></div>
+        </section>
+      </div>
+
+      <div class="plane">
+        <h3><span class="pn">03</span>Attribute<span class="sub">proven, or it does not say so</span></h3>
+
+        <section class="node" data-id="obs.lineage">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Causal lineage</span><span class="ns">roles, not vendor stages</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">Every step carries a role — <span class="kx">inception · activity · evidence · artifact · verification · outcome</span> — and links carry a relation, a confidence and its evidence.</p>
+          <p class="cap">The vocabulary is portable on purpose: layer is <span class="kx">ticketing</span> and <span class="kx">ci</span>, not Jira and Bamboo, so swapping the corporate system is a connector rather than a redesign.</p></div>
+          </div></div></div>
+        </section>
+
+        <section class="node" data-id="obs.honesty">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Inference cannot claim certainty</span><span class="ns">structurally</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">A <span class="kx">deterministic</span> link must have confidence 1. An <span class="kx">evidence</span> link is <b>forbidden</b> from claiming it, and a calibrated one must carry measured precision and sample size.</p>
+          <p class="cap">So the page can say <i>"76% deterministic, 24% inferred at precision 0.9."</i> Competing AI-ROI dashboards state numbers without a confidence; this one cannot.</p></div>
+          </div></div></div>
+        </section>
+
+        <section class="node" data-id="obs.gates">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Reconstruction refuses</span><span class="ns">13 named failure modes</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">A trace is not complete because it has steps. It is complete when it has an inception, an artifact, a verification and an outcome, with a causal path between them.</p>
+          <table class="m">
+            <tr><td><b>unverified_artifact</b></td><td>nothing verified what was produced</td></tr>
+            <tr><td><b>outcome_without_verification</b></td><td>it shipped, unproven</td></tr>
+            <tr><td><b>causal_cycle · dangling_link · unrooted_step</b></td><td>the graph does not hold</td></tr>
+          </table>
+          <p class="cap">Break one link and verified shipping reads <span class="stub">Unproven</span> instead of <span class="real">Proven</span>.</p></div>
+          </div></div></div>
+        </section>
+      </div>
+    </div>
+
+    <div class="grid3 row1" style="margin-top:var(--step)">
+      <div class="plane">
+        <h3><span class="pn">04</span>Present<span class="sub">same trace, three surfaces</span></h3>
+
+        <section class="node" data-id="obs.cockpit">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Cockpit</span><span class="ns">browser · pnpm cockpit</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">Executive view and developer ledger from one trace. Positioned waterfall, evidence per span, and an unavoidable <b>SIMULATED DATA</b> label wherever a corporate system is a fixture.</p></div>
+          </div></div></div>
+        </section>
+
+        <section class="node" data-id="obs.journey">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Journey</span><span class="ns">terminal · pnpm journey</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">The same numbers with no browser and no port. Active and wait are <b>different glyphs</b>, not different colours, so the split survives a washed-out projector and a screenshot in a deck.</p></div>
+          </div></div></div>
+        </section>
+
+        <section class="node" data-id="obs.lifecycle">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Lifecycle</span><span class="ns">terminal · pnpm lifecycle</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">Runs the real products rather than narrating them, and closes with a ledger counting <b>what actually ran</b>. A skipped act is named under <i>not proven this run</i> — never narrated as if it passed.</p></div>
+          </div></div></div>
+        </section>
+      </div>
+
+      <div class="plane">
+        <h3><span class="pn">05</span>Status<span class="sub">what is real, what is not</span></h3>
+
+        <section class="node" data-id="obs.real">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Real today</span><span class="ns">product code</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <table class="m">
+            <tr><td class="real">✓</td><td>event &amp; usage contract, PostgreSQL ingestion, idempotent restatement</td></tr>
+            <tr><td class="real">✓</td><td>span duration, work/wait, tool and model call rollups</td></tr>
+            <tr><td class="real">✓</td><td>versioned pricebook and MaaS metering gateway</td></tr>
+            <tr><td class="real">✓</td><td>workflow reconstruction and completion-integrity gates</td></tr>
+            <tr><td class="real">✓</td><td>Amp archiver, lineage resolver with calibration</td></tr>
+            <tr><td class="real">✓</td><td>cross-product proof: EIL emits → Observability persists, retry idempotent</td></tr>
+          </table></div>
+          </div></div></div>
+        </section>
+
+        <section class="node" data-id="obs.stub">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Not proven yet</span><span class="ns">named, not hidden</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <table class="m">
+            <tr><td class="stub">–</td><td>Jira, Confluence, Bamboo and deployment producers — fixtures, no connector</td></tr>
+            <tr><td class="stub">–</td><td>two-process / network deployment wiring — the integration is in-process</td></tr>
+            <tr><td class="stub">–</td><td>a paid Amp run producing commit → thread → cost</td></tr>
+            <tr><td class="stub">–</td><td>Copilot CLI end to end</td></tr>
+            <tr><td class="stub">–</td><td>agent-level abstention</td></tr>
+          </table>
+          <p class="cap">A demo that cannot show a bad number cannot be trusted with a good one.</p></div>
+          </div></div></div>
+        </section>
+      </div>
+
+      <div class="plane">
+        <h3><span class="pn">06</span>Feedback<span class="sub">the loop back to 02 ingest</span></h3>
+
+        <section class="node" data-id="obs.loop">
+          <button class="nh" type="button" aria-expanded="false"><span class="dot"></span><span class="lbl">Usage steers the index</span><span class="ns">why 07 returns over the top</span><span class="cv" aria-hidden="true">›</span></button>
+          <div class="nb"><div class="nbi"><div class="pad">
+            <div class="txt">
+          <p class="cap">Every retrieval writes an audit row: who asked, what matched, how many results — never the result content. Aggregated, that is the signal for what to index next and what to stop indexing.</p>
+          <p class="cap">This is the arrow that leaves the observability node on the system map and returns to <b>02 Ingest</b> and <b>03 Index</b>.</p></div>
+          </div></div></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="legend">
+    <div><b>Enterprise Intelligence Layer</b> — observability plane</div>
+    <div class="muted">measured · estimated · unknown are three different things, everywhere</div>
+  </footer>
+
+  <script>
+    for (const head of document.querySelectorAll(".nh")) {
+      head.addEventListener("click", () => {
+        const open = head.getAttribute("aria-expanded") === "true";
+        head.setAttribute("aria-expanded", String(!open));
+      });
+    }
+  </script>
+</body>
+</html>
