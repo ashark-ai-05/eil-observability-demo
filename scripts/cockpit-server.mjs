@@ -14,6 +14,15 @@ const server = createServer(async (request, response) => {
       response.end(JSON.stringify(await cockpitModel(root)));
       return;
     }
+    // The platform map and observability plane are served from their own
+    // directory, on the same exact-match allowlist as the cockpit assets --
+    // a prefix or extension test here would be a path-traversal hole.
+    const platform = request.url.match(/^\/platform\/(system-map\.html|observability-plane\.html)$/);
+    if (platform) {
+      response.writeHead(200, { "content-type": types[".html"] });
+      response.end(await readFile(resolve(root, "platform", platform[1])));
+      return;
+    }
     const relative = request.url === "/" ? "index.html" : request.url.slice(1);
     if (!/^(index\.html|app\.js|styles\.css|presenter\.css)$/.test(relative)) throw new Error("not found");
     response.writeHead(200, { "content-type": types[extname(relative)] ?? "application/octet-stream" });
