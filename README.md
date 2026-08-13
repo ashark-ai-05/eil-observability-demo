@@ -152,6 +152,21 @@ explicitly capability-blocked until their real environments produce receipts.
 
 Prerequisites: Node.js 22 or newer and pnpm 10.32.1.
 
+For the audience-facing delivery intelligence demo:
+
+```bash
+pnpm cockpit
+```
+
+Open <http://127.0.0.1:4173>. The command center renders a clearly labelled
+simulation of one task moving from Jira and Confluence discovery through code,
+acceptance criteria, implementation, verification, Bamboo, TST and PRD. Its
+executive and developer views are derived from the same lifecycle trace in
+`scenario/delivery-lifecycle.json`, including active/wait time, tokens, tool
+calls, retries, resource use, estimated cost and linked artifacts. The
+simulation is a product-experience demonstration; it is not evidence of live
+corporate Jira, Confluence, Bamboo or deployment connectivity.
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm check
