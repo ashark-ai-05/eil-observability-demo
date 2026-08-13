@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ashark-ai-05/enterprise-intelligence-layer
-          ref: 12308fbc93a4f60467ef58305ddf4f5657ba9435
+          ref: 3a97539b335662937b6c6e73468646dc2a52497f
           path: .products/eil
       - name: Check out enterprise-ai-observability
         uses: actions/checkout@v4
@@ -67,4 +67,3 @@ jobs:
           EIL_REPO: ${{ github.workspace }}/.products/eil
           OBSERVABILITY_REPO: ${{ github.workspace }}/.products/observability
         run: pnpm test:integration
-

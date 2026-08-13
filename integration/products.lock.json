@@ -3,7 +3,7 @@
   "products": {
     "eil": {
       "repository": "https://github.com/ashark-ai-05/enterprise-intelligence-layer.git",
-      "revision": "12308fbc93a4f60467ef58305ddf4f5657ba9435",
+      "revision": "3a97539b335662937b6c6e73468646dc2a52497f",
       "envVar": "EIL_REPO"
     },
     "observability": {
