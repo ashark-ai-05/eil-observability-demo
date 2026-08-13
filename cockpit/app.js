@@ -15,6 +15,7 @@ const pct = (value) => `${Math.round(value * 100)}%`;
 const icons = { understand: "⌕", plan: "◇", implement: "⌘", verify: "✓", release: "↑" };
 const artifactIcons = { ticket: "J", requirement: "C", code: "{ }", criteria: "AC", diff: "±", test: "T", commit: "G", build: "B", deployment: "D", approval: "A" };
 const total = data.summary.elapsedSeconds;
+const flow = data.steps.map((step) => `<div class="flow-node" data-stage="${step.stage}"><i>${step.order}</i><span><small>${step.system}</small><strong>${step.action}</strong></span></div>`).join("");
 
 const stageCards = data.stages.map((stage, index) => `
   <article class="stage-card stage-${stage.name}">
@@ -63,6 +64,7 @@ document.querySelector("#app").innerHTML = `
     <div class="title-row"><div><h1>${data.task.title}</h1><p>${data.task.service} · ${data.task.repository} · Correlation ${data.correlationId}</p></div><div class="outcome"><i>✓</i><span><small>Outcome</small><strong>Released to ${data.task.environment}</strong></span></div></div>
   </header>
   <section class="notice"><b>Simulation</b><span>This journey demonstrates the intended experience. Jira, Confluence, Bamboo and deployment events below are representative fixtures, not live corporate telemetry.</span><code>${data.runId}</code></section>
+  <section class="flow"><div class="flow-line"></div>${flow}</section>
   <section class="kpis">
     <article><span>Lead time</span><strong>${duration(data.summary.elapsedSeconds)}</strong><small>intake → production</small></article>
     <article><span>Active work</span><strong>${duration(data.summary.activeSeconds)}</strong><small>${pct(data.summary.activeSeconds / data.summary.elapsedSeconds)} of elapsed</small></article>
@@ -82,5 +84,10 @@ document.querySelector("#app").innerHTML = `
     <div class="panel-title"><div><span>04 · DEVELOPER VIEW</span><h2>Trace, evidence and resource ledger</h2><p>Every number resolves to one simulated span and one artifact.</p></div><div class="trace-summary"><b>${data.steps.length}</b> spans <b>${data.lineage.length}</b> causal links</div></div>
     <div class="trace-head"><span>Span</span><span>Evidence artifact</span></div>
     <div class="timeline">${timeline}</div>
+  </section>
+  <section class="measured-output" id="measured-output">
+    <div><span>05 · MEASURED OUTPUT</span><h2>One accepted production outcome</h2><p>Final roll-up from the same 11 spans above. No separate spreadsheet and no hidden denominator.</p></div>
+    <div class="output-grid"><article><small>Elapsed</small><strong>${duration(data.summary.elapsedSeconds)}</strong></article><article><small>Active / wait</small><strong>${duration(data.summary.activeSeconds)} <i>/</i> ${duration(data.summary.waitSeconds)}</strong></article><article><small>Tokens</small><strong>${number(data.summary.tokenTotal)}</strong></article><article><small>Tools / retries</small><strong>${data.summary.toolCalls} <i>/</i> ${data.summary.retries}</strong></article><article><small>Total estimated cost</small><strong>${money(data.summary.totalCostUsd)}</strong></article><article><small>Outcome proof</small><strong class="good">Shipped · ${pct(data.summary.attributionCoverage)}</strong></article></div>
+    <footer><span>${data.pricing.version} · ESTIMATED COST</span><span>Every value resolves to the simulated trace</span></footer>
   </section>
   <footer><span>Schema v${data.schemaVersion} · ${data.pricing.provenance} cost · simulation</span><span>${time(data.startedAt)} → ${time(data.endedAt)} UTC</span></footer>`;
