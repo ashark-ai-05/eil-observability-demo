@@ -267,12 +267,36 @@ local product integration test.
 From `eil-observability-demo`:
 
 ```bash
-pnpm cockpit
+EIL_REPO=../enterprise-intelligence-layer \
+OBSERVABILITY_REPO=../enterprise-ai-observability \
+pnpm lifecycle          # add -- --pause for a presenter-led run
+
+pnpm cockpit            # then open http://127.0.0.1:4173
 ```
 
-Keep that terminal running and open <http://127.0.0.1:4173>. The page is
-explicitly labelled **SIMULATED DATA** and shows the Jira → Confluence → code →
-acceptance criteria → implementation → commit → Bamboo → TST → PRD flow.
+The lifecycle command is the recommended demo entry point. It runs four acts in
+order and prints each command before its output:
+
+1. **Knowledge plane — real product:** EIL storage, scope registration,
+   ingestion, structural chunking, offline embeddings, atomic publication,
+   reconciliation, rank fusion, ACL checks, retrieval and MCP surface over the
+   deterministic synthetic corpus.
+2. **Change and gates — executable controlled run:** a disposable Git repository
+   reproduces the payment-retry defect, applies the patch, passes verification,
+   commits the result and evaluates all 12 acceptance gates. Unmet gates remain
+   visible; the controlled run currently reports `8/12`.
+3. **Cross-product observation — real products:** pinned EIL emits the retrieval
+   event and pinned Observability validates, persists and idempotently replays
+   it through the real integration test.
+4. **Delivery journey — labelled simulation:** Jira → Confluence → code →
+   criteria → implementation → commit → Bamboo → TST → approval → PRD, with
+   elapsed/active/wait time, tokens, tool calls, retries, cost and evidence.
+
+The closing provenance ledger counts only acts that completed. Missing product
+paths, a drifted pin or a failed command are shown as skipped/not proven; the
+script does not report the planned act as executed. The browser cockpit maps the
+same delivery trace used by the terminal journey and is explicitly labelled
+**SIMULATED DATA** for the corporate systems that are not connected.
 
 GitHub Actions do not run in Stash. Reproduce `pnpm check`, both product builds,
 and `pnpm test:integration` in Bamboo when turning this manual test into a
@@ -340,8 +364,12 @@ Prerequisites: Node.js 22 or newer and pnpm 10.32.1.
 For the audience-facing delivery intelligence demo:
 
 ```bash
-pnpm journey       # narrated terminal journey; add -- --pause to step through
-pnpm cockpit
+EIL_REPO=/path/to/enterprise-intelligence-layer \
+OBSERVABILITY_REPO=/path/to/enterprise-ai-observability \
+pnpm lifecycle          # add -- --pause to step through it in front of a room
+
+pnpm cockpit            # browser command center
+pnpm journey            # delivery-trace act only; no product execution
 ```
 
 Open <http://127.0.0.1:4173>. The command center renders a clearly labelled
@@ -352,6 +380,14 @@ executive and developer views are derived from the same lifecycle trace in
 calls, retries, resource use, estimated cost and linked artifacts. The
 simulation is a product-experience demonstration; it is not evidence of live
 corporate Jira, Confluence, Bamboo or deployment connectivity.
+
+`pnpm lifecycle` is the full runnable sequence. Its first act invokes EIL's real
+`pnpm demo`, including ingestion and indexing; its second executes the reset,
+defect reproduction, patch, verification, commit and acceptance gates; its third
+runs the pinned EIL-to-Observability integration; and its fourth invokes
+`pnpm journey`. The final ledger distinguishes real product execution from the
+labelled corporate-system simulation and refuses to count a skipped or failed
+act as proven.
 
 `pnpm journey` follows the same presentation pattern as EIL's
 `demo/eil.mjs`: it names what each step demonstrates, shows the evidence
