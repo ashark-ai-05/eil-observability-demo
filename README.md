@@ -100,7 +100,7 @@ pnpm build
 pnpm doctor
 
 cd ../enterprise-ai-observability
-git checkout 336a42ac68f1b31c5161dfaa916df162570ce759
+git checkout 1160abe1794784fcbd045738d37ba9b24aab7b75
 pnpm install --frozen-lockfile
 pnpm build
 
