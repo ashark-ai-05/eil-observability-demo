@@ -19,7 +19,8 @@
     "amp:probe": "node scripts/amp-probe.mjs",
     "test:integration": "node --test integration/*.test.mjs",
     "report": "node scripts/report.mjs",
-    "journey": "node scripts/journey.mjs"
+    "journey": "node scripts/journey.mjs",
+    "lifecycle": "node scripts/lifecycle.mjs"
   },
   "dependencies": {
     "ajv": "^8.17.1",
