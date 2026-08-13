@@ -97,7 +97,7 @@ cd enterprise-intelligence-layer
 git checkout c8380bd1ff1a49be3cd7bcdcff0e59a05fcc1cf1
 pnpm install --frozen-lockfile
 pnpm build
-pnpm doctor
+pnpm run doctor
 
 cd ../enterprise-ai-observability
 git checkout 1160abe1794784fcbd045738d37ba9b24aab7b75
@@ -111,7 +111,15 @@ EIL_REPO=../enterprise-intelligence-layer \
 OBSERVABILITY_REPO=../enterprise-ai-observability \
 pnpm test:integration
 pnpm amp:probe
+
+pnpm cockpit          # then open http://127.0.0.1:4173
 ```
+
+`pnpm run doctor`, not `pnpm doctor`. `doctor` is also a built-in pnpm
+subcommand and the built-in wins, so `pnpm doctor` prints nothing and exits 0 —
+which reads as "the environment is fine" when the proxy, TLS-bundle and
+native-binary checks never ran. `amp:probe`, `test:integration` and `cockpit`
+are not pnpm subcommands, so they are unaffected.
 
 #### GitHub-blocked / Stash transfer
 
@@ -219,7 +227,7 @@ Run from the parent directory containing the three repositories:
 cd enterprise-intelligence-layer
 pnpm install --frozen-lockfile
 pnpm build
-pnpm doctor
+pnpm run doctor
 
 cd ../enterprise-ai-observability
 pnpm install --frozen-lockfile
@@ -232,6 +240,8 @@ EIL_REPO=../enterprise-intelligence-layer \
 OBSERVABILITY_REPO=../enterprise-ai-observability \
 pnpm test:integration
 pnpm amp:probe
+
+pnpm cockpit          # then open http://127.0.0.1:4173
 ```
 
 PowerShell uses the same commands except for the two environment variables:
@@ -248,7 +258,7 @@ The required successful integration line is:
 eil c8380bd1 -> observability 1160abe1: eil/retrieval, capture metadata_only, idempotent retry ok
 ```
 
-`pnpm doctor` and `pnpm amp:probe` are diagnostics; a corporate proxy or an Amp
+`pnpm run doctor` and `pnpm amp:probe` are diagnostics; a corporate proxy or an Amp
 account/build issue can make them report a blocker without invalidating a green
 local product integration test.
 
@@ -270,7 +280,7 @@ corporate pipeline.
 
 The integration test should report that real EIL emitted an `eil/retrieval`
 event that real Observability ingested with metadata-only capture and an
-idempotent retry. `pnpm doctor` and `pnpm amp:probe` are no-spend diagnostics;
+idempotent retry. `pnpm run doctor` and `pnpm amp:probe` are no-spend diagnostics;
 send their exact output with any failure report. Run `pnpm amp:probe -- --live`
 only when you intend to make a minimal paid Amp call.
 
