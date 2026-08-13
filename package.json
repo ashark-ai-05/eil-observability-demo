@@ -18,7 +18,8 @@
     "cockpit": "node scripts/cockpit-server.mjs",
     "amp:probe": "node scripts/amp-probe.mjs",
     "test:integration": "node --test integration/*.test.mjs",
-    "report": "node scripts/report.mjs"
+    "report": "node scripts/report.mjs",
+    "journey": "node scripts/journey.mjs"
   },
   "dependencies": {
     "ajv": "^8.17.1",
