@@ -94,13 +94,13 @@ git clone https://github.com/ashark-ai-05/enterprise-ai-observability.git
 git clone https://github.com/ashark-ai-05/eil-observability-demo.git
 
 cd enterprise-intelligence-layer
-git checkout 3a97539b335662937b6c6e73468646dc2a52497f
+git checkout c8380bd1ff1a49be3cd7bcdcff0e59a05fcc1cf1
 pnpm install --frozen-lockfile
 pnpm build
 pnpm doctor
 
 cd ../enterprise-ai-observability
-git checkout c105e126298b33ceb1932be622f960c0a9e2e5d1
+git checkout 336a42ac68f1b31c5161dfaa916df162570ce759
 pnpm install --frozen-lockfile
 pnpm build
 
@@ -112,6 +112,58 @@ OBSERVABILITY_REPO=../enterprise-ai-observability \
 pnpm test:integration
 pnpm amp:probe
 ```
+
+#### GitHub-blocked / Stash transfer
+
+Download the three Git bundles, checksum file and transfer README from the
+[latest corporate transfer release](https://github.com/ashark-ai-05/eil-observability-demo/releases/latest).
+Release assets live outside Git history, so they do not make every future clone
+carry large, stale or recursively nested bundles.
+
+Verify the downloaded files before importing them:
+
+```bash
+shasum -a 256 -c SHA256SUMS.txt  # macOS
+# or: sha256sum -c SHA256SUMS.txt  # Linux
+
+git bundle list-heads enterprise-intelligence-layer.bundle
+git bundle list-heads enterprise-ai-observability.bundle
+git bundle list-heads eil-observability-demo.bundle
+```
+
+Compare the three reported `refs/heads/main` revisions with `TRANSFER-README.md`.
+
+Create three new, empty Stash repositories. Restore and publish each bundle:
+
+```bash
+git clone enterprise-intelligence-layer.bundle enterprise-intelligence-layer
+cd enterprise-intelligence-layer
+git remote set-url origin <enterprise-intelligence-layer-stash-url>
+git push origin --all
+git push origin --tags
+cd ..
+
+git clone enterprise-ai-observability.bundle enterprise-ai-observability
+cd enterprise-ai-observability
+git remote set-url origin <enterprise-ai-observability-stash-url>
+git push origin --all
+git push origin --tags
+cd ..
+
+git clone eil-observability-demo.bundle eil-observability-demo
+cd eil-observability-demo
+git remote set-url origin <eil-observability-demo-stash-url>
+git push origin --all
+git push origin --tags
+```
+
+Do not initialize and commit raw GitHub source ZIPs: that produces new commit
+IDs and makes the pinned integration fail. The Stash destinations above must be
+empty so the preserved histories remain authoritative.
+
+After cloning the three Stash repositories as siblings, configure the corporate
+npm registry/CA and run the normal verification sequence. GitHub Actions do not
+run in Stash; reproduce `pnpm check` and `pnpm test:integration` in Bamboo.
 
 The integration test should report that real EIL emitted an `eil/retrieval`
 event that real Observability ingested with metadata-only capture and an
