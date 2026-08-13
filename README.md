@@ -3,8 +3,9 @@
 Thin, resettable integration harness for demonstrating governed enterprise
 intelligence and AI-effectiveness observability against the same incident.
 
-This repository orchestrates the products through a versioned wire contract. It
-does not copy their implementation or import either private package at runtime.
+Fast conformance checks use a versioned wire contract without depending on
+either product. The integration test separately loads pinned, built checkouts of
+both real products and fails if either checkout is missing, stale, or unbuilt.
 
 ## The real integration test
 
@@ -61,6 +62,42 @@ fails on drift, so the CI pin and the assertion cannot silently disagree. Use
 CI never sets it.
 
 Keep `pnpm check` for fast schema conformance; it needs no checkouts.
+
+### Corporate-machine verification
+
+Clone the three repositories as siblings, then use the exact revisions in
+`integration/products.lock.json`. The commands below match the current manifest:
+
+```bash
+git clone https://github.com/ashark-ai-05/enterprise-intelligence-layer.git
+git clone https://github.com/ashark-ai-05/enterprise-ai-observability.git
+git clone https://github.com/ashark-ai-05/eil-observability-demo.git
+
+cd enterprise-intelligence-layer
+git checkout f3a2c6fc87d2a160ed4a06b85623ef2f72e095ce
+pnpm install --frozen-lockfile
+pnpm build
+pnpm doctor
+
+cd ../enterprise-ai-observability
+git checkout c105e126298b33ceb1932be622f960c0a9e2e5d1
+pnpm install --frozen-lockfile
+pnpm build
+
+cd ../eil-observability-demo
+pnpm install --frozen-lockfile
+pnpm check
+EIL_REPO=../enterprise-intelligence-layer \
+OBSERVABILITY_REPO=../enterprise-ai-observability \
+pnpm test:integration
+pnpm amp:probe
+```
+
+The integration test should report that real EIL emitted an `eil/retrieval`
+event that real Observability ingested with metadata-only capture and an
+idempotent retry. `pnpm doctor` and `pnpm amp:probe` are no-spend diagnostics;
+send their exact output with any failure report. Run `pnpm amp:probe -- --live`
+only when you intend to make a minimal paid Amp call.
 
 ## Before attempting the Amp proof
 
@@ -154,6 +191,7 @@ scenario/     Resettable incident manifest (no hidden truth or credentials)
 runners/      Honest capability declarations for Amp, Copilot, and MaaS
 acceptance/   Deterministic outcome gates and example result
 recordings/   Content-digested recording manifest fixtures
+integration/  Pinned product manifest and real library-integration test
 scripts/      Validation and tamper-check entry point
 ```
 
@@ -178,10 +216,12 @@ that compatible wire schema; it is not a third event vocabulary.
    [What this does and does not prove](#what-this-does-and-does-not-prove).
 2. Record a real Amp CLI run and reconcile its commit trailer to thread cost.
 3. Measure a real authenticated Copilot CLI environment and managed telemetry.
-4. Prove the two-process/network deployment boundary the current integration
-   test does not cover (transport, wire serialization, inter-service auth).
-5. Add the cockpit only after live runner receipts and the deployment
-   boundary above exist.
+4. Add a two-process deployment test covering transport, wire serialization,
+   inter-service auth, proxies, and failure across the process boundary — the
+   integration test above does not cover this.
+5. Replace the controlled-reference runner with live product receipts, and add
+   the cockpit only after those receipts and the deployment boundary above
+   exist.
 
 The first paid Amp attempt is preserved as a sanitized `blocked_environment`
 runner proof. It established native thread identity and structured activity, but
