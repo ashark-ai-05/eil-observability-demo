@@ -74,7 +74,7 @@ git clone https://github.com/ashark-ai-05/enterprise-ai-observability.git
 git clone https://github.com/ashark-ai-05/eil-observability-demo.git
 
 cd enterprise-intelligence-layer
-git checkout f3a2c6fc87d2a160ed4a06b85623ef2f72e095ce
+git checkout 3a97539b335662937b6c6e73468646dc2a52497f
 pnpm install --frozen-lockfile
 pnpm build
 pnpm doctor
