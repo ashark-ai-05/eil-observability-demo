@@ -87,7 +87,9 @@ opt-in.
 
 ## Current milestone
 
-The Phase 0 foundation is executable and credential-free. It validates:
+Real library integration is proven: see [The real integration test](#the-real-integration-test)
+above. The rest of the foundation below is executable and credential-free. It
+validates:
 
 - the payment-retry scenario manifest;
 - Amp CLI, GitHub Copilot CLI, and MaaS reference capability manifests;
@@ -169,11 +171,17 @@ that compatible wire schema; it is not a third event vocabulary.
 
 ## Next gates
 
-1. Record a real Amp CLI run and reconcile its commit trailer to thread cost.
-2. Measure a real authenticated Copilot CLI environment and managed telemetry.
-3. Replace the controlled-reference receipt with live EIL MCP event ingestion;
-   the same vendored schema and replay validator are already exercised here.
-4. Add the cockpit only after live runner receipts exist.
+1. ~~Replace the controlled-reference receipt with live EIL MCP event
+   ingestion~~ — done: `integration/eil-to-observability.test.mjs` runs the
+   real MCP call, the real emitter, and real Observability ingestion, pinned
+   and CI-enforced. It proves library integration only — see
+   [What this does and does not prove](#what-this-does-and-does-not-prove).
+2. Record a real Amp CLI run and reconcile its commit trailer to thread cost.
+3. Measure a real authenticated Copilot CLI environment and managed telemetry.
+4. Prove the two-process/network deployment boundary the current integration
+   test does not cover (transport, wire serialization, inter-service auth).
+5. Add the cockpit only after live runner receipts and the deployment
+   boundary above exist.
 
 The first paid Amp attempt is preserved as a sanitized `blocked_environment`
 runner proof. It established native thread identity and structured activity, but
