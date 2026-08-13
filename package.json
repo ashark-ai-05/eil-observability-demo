@@ -15,7 +15,8 @@
     "demo:run": "node scripts/demo-runner.mjs run",
     "demo:replay": "node scripts/demo-runner.mjs replay",
     "demo:test": "node scripts/demo-runner.mjs all",
-    "amp:probe": "node scripts/amp-probe.mjs"
+    "amp:probe": "node scripts/amp-probe.mjs",
+    "test:integration": "node --test integration/*.test.mjs"
   },
   "dependencies": {
     "ajv": "^8.17.1",

@@ -22,3 +22,49 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+
+  # The conformance job above never runs the integration test, so a green tick
+  # there says nothing about whether the two products still connect. This job is
+  # the one that would go red if they stopped.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Revisions come from integration/products.lock.json. The test re-checks
+      # the resolved HEAD against that manifest and fails on drift, so pinning
+      # here and asserting there cannot silently disagree.
+      - name: Check out enterprise-intelligence-layer
+        uses: actions/checkout@v4
+        with:
+          repository: ashark-ai-05/enterprise-intelligence-layer
+          ref: 12308fbc93a4f60467ef58305ddf4f5657ba9435
+          path: .products/eil
+      - name: Check out enterprise-ai-observability
+        uses: actions/checkout@v4
+        with:
+          repository: ashark-ai-05/enterprise-ai-observability
+          ref: c105e126298b33ceb1932be622f960c0a9e2e5d1
+          path: .products/observability
+
+      - name: Build both products
+        run: |
+          pnpm --dir .products/eil install --frozen-lockfile
+          pnpm --dir .products/eil build
+          pnpm --dir .products/observability install --frozen-lockfile
+          pnpm --dir .products/observability build
+
+      - name: Run the real integration test
+        env:
+          EIL_REPO: ${{ github.workspace }}/.products/eil
+          OBSERVABILITY_REPO: ${{ github.workspace }}/.products/observability
+        run: pnpm test:integration
+
