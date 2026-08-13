@@ -28,9 +28,37 @@ a `query_digest` present, **the raw query absent**, and a retry that is
 idempotent. Nothing is constructed, reshaped or normalised along the way.
 
 It **fails** — never skips — when a checkout, an export or a built artifact is
-missing. Verified by removing each: a missing checkout, an unbuilt product and an
-injected raw-query leak each produce a distinct failure. A green run that
-silently proved nothing is the failure mode this repository exists to avoid.
+missing, or when a checkout sits at a revision `integration/products.lock.json`
+does not pin. Verified by inducing each: a missing checkout, an unbuilt product,
+a drifted revision and an injected raw-query leak each produce a distinct
+failure. A green run that silently proved nothing is the failure mode this
+repository exists to avoid.
+
+### What this does and does not prove
+
+**It proves library integration.** Both products are loaded in one process from
+their built `dist/` trees. The emitter, the schema, the migrations and the
+ingestion path are all the real ones, so a contract change on either side breaks
+this test.
+
+**It does not prove deployment integration.** Nothing crosses a process
+boundary, a socket or a network. Transport, serialization over the wire, auth
+between services, proxy behaviour and failure under partition are all untested
+and this test would not notice if they broke. Two-process wiring remains open
+work; do not read a green run here as covering it.
+
+### Revisions are pinned, and CI runs it
+
+`integration/products.lock.json` records the exact product revisions this is
+verified against. CI checks out those revisions, builds both, and runs
+`pnpm test:integration` in a **dedicated job** — because the conformance job runs
+`pnpm check`, which does not run the integration test, so a green tick there says
+nothing about whether the products still connect.
+
+The test independently re-checks the resolved `HEAD` against the manifest and
+fails on drift, so the CI pin and the assertion cannot silently disagree. Use
+`INTEGRATION_ALLOW_UNPINNED=1` to run against a working tree during development;
+CI never sets it.
 
 Keep `pnpm check` for fast schema conformance; it needs no checkouts.
 

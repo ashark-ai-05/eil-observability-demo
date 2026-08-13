@@ -1,0 +1,15 @@
+{
+  "$comment": "Pinned product revisions the integration test is verified against. CI checks out exactly these; a drifting HEAD is a failure, not a warning.",
+  "products": {
+    "eil": {
+      "repository": "https://github.com/ashark-ai-05/enterprise-intelligence-layer.git",
+      "revision": "fae36393485df324cf00756443dc70db4061b797",
+      "envVar": "EIL_REPO"
+    },
+    "observability": {
+      "repository": "https://github.com/ashark-ai-05/enterprise-ai-observability.git",
+      "revision": "c105e126298b33ceb1932be622f960c0a9e2e5d1",
+      "envVar": "OBSERVABILITY_REPO"
+    }
+  }
+}

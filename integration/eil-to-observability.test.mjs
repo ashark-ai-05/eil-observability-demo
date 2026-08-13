@@ -28,8 +28,9 @@
  */
 
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -37,6 +38,40 @@ import { pathToFileURL } from "node:url";
 
 /** A distinctive query, so its absence from the persisted row is meaningful. */
 const QUERY = "payment retries in checkout";
+
+const lock = JSON.parse(
+  readFileSync(new URL("./products.lock.json", import.meta.url), "utf8"),
+);
+
+/**
+ * Refuse to run against a revision the manifest does not pin.
+ *
+ * Without this the test accepts any local checkout, so a pass says "it worked
+ * on someone's machine, against whatever they had" -- which is the claim this
+ * test exists to replace. Set INTEGRATION_ALLOW_UNPINNED=1 to develop against a
+ * working tree; CI never sets it.
+ */
+function assertPinned(name, path) {
+  const expected = lock.products[name]?.revision;
+  if (!expected) throw new Error(`products.lock.json has no revision for ${name}`);
+  let head;
+  try {
+    head = execFileSync("git", ["-C", path, "rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    throw new Error(`${path} is not a git checkout, so its revision cannot be verified.`);
+  }
+  if (head === expected) return head;
+  const message =
+    `${name}: checkout is at ${head}, manifest pins ${expected}. ` +
+    `Update integration/products.lock.json deliberately, or check out the pinned revision.`;
+  if (process.env.INTEGRATION_ALLOW_UNPINNED === "1") {
+    console.warn(`WARNING (unpinned run) ${message}`);
+    return head;
+  }
+  throw new Error(message);
+}
 
 function requireRepo(variable) {
   const raw = process.env[variable];
@@ -79,6 +114,8 @@ function requireExports(module, names, where) {
 test("real EIL emits an event real Observability ingests", async (t) => {
   const eilRepo = requireRepo("EIL_REPO");
   const observabilityRepo = requireRepo("OBSERVABILITY_REPO");
+  const eilHead = assertPinned("eil", eilRepo);
+  const observabilityHead = assertPinned("observability", observabilityRepo);
 
   // --- load both real products -------------------------------------------
   const [corpus, gate, tools, telemetry, database, eilMigrations] =
@@ -206,7 +243,8 @@ test("real EIL emits an event real Observability ingests", async (t) => {
 
     await pg.close();
     t.diagnostic(
-      `eil -> observability: ${row.source_kind}/${row.operation}, capture ${row.capture_mode}, idempotent retry ok`,
+      `eil ${eilHead.slice(0, 8)} -> observability ${observabilityHead.slice(0, 8)}: ` +
+        `${row.source_kind}/${row.operation}, capture ${row.capture_mode}, idempotent retry ok`,
     );
   } finally {
     if (eilDb) await eilDb.close().catch(() => {});
