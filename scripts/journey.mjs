@@ -56,6 +56,7 @@ const clock = (seconds) => {
 };
 const usd = (n) => n === null ? "unknown" : `$${n.toFixed(2)}`;
 const pct = (n) => `${Math.round(n * 100)}%`;
+const compact = (value) => JSON.stringify(value).replaceAll('"', "");
 
 const model = await cockpitModel(resolve(fileURLToPath(new URL("..", import.meta.url))));
 const { summary: sum, task, steps, stages, pricing } = model;
@@ -101,9 +102,23 @@ console.log(
   } ${c.dim(`${pct(sum.attributionCoverage)} lineage coverage`)}`,
 );
 
+// ── Input → operation → output → artifact ───────────────────────────────────
+console.log(`\n${c.grey(RULE)}`);
+console.log(`${chip(" 02 ")} ${c.bold("What happened at every stage")}`);
+console.log(`    ${c.dim("Each step exposes its input, operation, output and resolvable artifact.")}\n`);
+for (const step of steps) {
+  console.log(`    ${chip(` ${String(step.order).padStart(2, "0")} `)} ${c.bold(step.action)} ${c.dim(`· ${step.system}`)}`);
+  console.log(`       ${c.cyan("INPUT   ")} ${compact(step.input ?? { source: step.provenance.sourceData })}`);
+  console.log(`       ${c.amber("RUN     ")} ${step.detail}`);
+  console.log(`       ${c.green("OUTPUT  ")} ${compact(step.output ?? step.metrics)}`);
+  console.log(`       ${c.grey("ARTIFACT")} ${c.cyan(step.artifact.ref)} ${c.dim(`(${step.artifact.type})`)}`);
+  const projection = SCALED ? ` · projected ${clock(step.durationSeconds)}` : "";
+  console.log(`       ${c.grey("METRICS ")} measured ${format(step.durationSeconds)} · ${step.tokens.total.toLocaleString()} tokens · ${step.toolCalls} calls · ${usd(step.costUsd)}${c.dim(projection)}\n`);
+}
+
 // ── Where the time actually went ────────────────────────────────────────────
 console.log(`\n${c.grey(RULE)}`);
-console.log(`${chip(" 02 ")} ${c.bold("Where the time actually went")}`);
+console.log(`${chip(" 03 ")} ${c.bold("Where the time actually went")}`);
 console.log(`    ${c.dim(measured ? "Executed spans in causal order; unattributed overhead is excluded." : "Each bar sits where it happened in the run, not flush left.")}`);
 console.log(`    ${c.amber("▸ look for:")} ${c.amber(measured ? "the real ingest/index counts, failing-before/passing-after test, and persisted receipt." : "the gaps. Reasoning is the short part.")}\n`);
 console.log(`    ${c.dim(`${c.green(ACTIVE)} active   ${WAIT} waiting`)}\n`);
@@ -129,14 +144,14 @@ for (const step of steps) {
 
 const slowest = [...steps].sort((a, b) => measured ? b.durationSeconds - a.durationSeconds : b.waitSeconds - a.waitSeconds)[0];
 console.log(
-  `\n    ${c.amber(measured ? "longest measured span" : "largest single delay")}  ${c.bold(slowest.action)} — ${c.amber(
-    clock(measured ? slowest.durationSeconds : slowest.waitSeconds),
+  `\n    ${c.amber(measured ? "longest span" : "largest single delay")}  ${c.bold(slowest.action)} — ${c.amber(
+    measured && SCALED ? `measured ${format(slowest.durationSeconds)} · projected ${clock(slowest.durationSeconds)}` : clock(measured ? slowest.durationSeconds : slowest.waitSeconds),
   )} ${c.dim(measured ? `executed by ${slowest.system}` : `of ${clock(slowest.durationSeconds)} was wait (${slowest.system})`)}`,
 );
 
 // ── The ledger a developer reads ────────────────────────────────────────────
 console.log(`\n${c.grey(RULE)}`);
-console.log(`${chip(" 03 ")} ${c.bold("Every span resolves to an artifact")}`);
+console.log(`${chip(" 04 ")} ${c.bold("Every span resolves to an artifact")}`);
 console.log(`    ${c.dim("No row on this page exists without something you can open.")}\n`);
 console.log(
   `    ${c.dim(
@@ -163,9 +178,9 @@ console.log(`      ${c.amber("1.")} ${measured
   ? `${c.bold(clock(sum.activeSeconds))} was captured in spans; ${c.bold(clock(sum.waitSeconds))} remains unattributed overhead.`
   : `${c.bold(pct(sum.waitSeconds / sum.elapsedSeconds))} of the lead time was waiting, not thinking.`}`);
 console.log(
-  `      ${c.amber("2.")} ${c.bold(usd(sum.totalCostUsd))} ${measured ? "is honest: no billing record was emitted" : `bought ${c.bold("one verified production change")}`}.`,
+  `      ${c.amber("2.")} ${c.bold(usd(sum.totalCostUsd))} ${measured ? "is an estimated simulated-LLM cost, not a billing record" : `bought ${c.bold("one verified production change")}`}.`,
 );
-console.log(`         ${c.dim(`${sum.tokenTotal.toLocaleString()} tokens · ${sum.toolCalls} tool calls · ${sum.retries} retries`)}`);
+console.log(`         ${c.dim(`${sum.modelCalls} model call · ${sum.tokenTotal.toLocaleString()} tokens · ${sum.toolCalls} tool calls · ${sum.retries} retries`)}`);
 console.log(
   `      ${c.amber("3.")} ${c.bold(measured ? "Verification and persistence are proven" : "Shipping is proven, not asserted")} — ${pct(
     sum.attributionCoverage,

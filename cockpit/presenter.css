@@ -84,6 +84,10 @@
 .output-grid strong { margin-top: 5px; font: 650 19px Georgia, serif; }
 .output-grid strong i { color: #50655c; font-style: normal; }
 .measured-output footer { border-top: 1px solid var(--line); margin-top: 18px; padding: 15px 0 0; color: var(--muted); }
+.trace-io { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+.trace-io span { min-width:0; padding:8px; background:#0b1714; border:1px solid var(--line); border-radius:7px; }
+.trace-io small { display:block; color:var(--mint); font-size:8px; text-transform:uppercase; letter-spacing:.12em; }
+.trace-io code { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-size:9px; }
 @media (max-width: 1000px) { .output-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 680px) {
   .flow { grid-template-columns: repeat(11, 110px); }

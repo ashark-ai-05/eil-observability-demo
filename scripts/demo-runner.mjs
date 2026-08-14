@@ -77,12 +77,16 @@ async function run() {
       const context = process.env.LIFECYCLE_CONTEXT_FILE
         ? JSON.parse(await readFile(resolve(process.env.LIFECYCLE_CONTEXT_FILE), "utf8"))
         : null;
+      const llm = process.env.LIFECYCLE_LLM_FILE
+        ? JSON.parse(await readFile(resolve(process.env.LIFECYCLE_LLM_FILE), "utf8"))
+        : null;
       return {
         scenario: await json("scenario/payment-retry.json"),
         runner: await json("runners/maas.json"),
         evidenceManifest: await json("scenario/evidence-manifest.json"),
         validate: await validators(),
         context,
+        llm,
       };
     },
     ({ scenario, evidenceManifest, context }) => ({
@@ -93,7 +97,7 @@ async function run() {
       taskId: scenario.scenarioId,
     }),
   );
-  const { scenario, runner, evidenceManifest, validate, context } = sources;
+  const { scenario, runner, evidenceManifest, validate, context, llm } = sources;
   assertValid(validate.scenario, scenario, "scenario");
   assertValid(validate.runner, runner, "maas runner");
   const criteriaPath = resolve(runDir, "criteria.json");
@@ -104,7 +108,7 @@ async function run() {
       const value = {
         taskId: scenario.scenarioId,
         derivedFrom: context?.evidence.map((item) => item.ref) ?? evidenceManifest.authorized,
-        criteria: [
+        criteria: llm?.output ?? [
           "Retry HTTP 429 and 5xx responses only",
           "Never retry after three attempts",
           "The regression test fails before the patch and passes after it",
@@ -114,7 +118,7 @@ async function run() {
       await writeFile(criteriaPath, stableJson(value));
       return value;
     },
-    (value) => ({ criteriaWritten: value.criteria.length, evidenceLinks: value.derivedFrom.length }),
+    (value) => ({ criteriaWritten: value.criteria.length, evidenceLinks: value.derivedFrom.length, llmDraftConsumed: Boolean(llm) }),
   );
   const startCommit = exec("git", ["rev-parse", "HEAD"], repo).stdout.trim();
   const templateBytes = Buffer.concat([

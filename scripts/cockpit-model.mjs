@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { combine, DEMO_SCALE_BASIS, project, scaleApplies } from "./provenance.mjs";
 
 const sum = (items, select) => items.reduce((total, item) => total + select(item), 0);
 const round = (value, digits = 4) => Number(value.toFixed(digits));
@@ -54,6 +55,7 @@ export function buildCockpitModel(trace) {
   const activeSeconds = sum(steps, (step) => step.activeSeconds);
   const tokenInput = sum(steps, (step) => step.tokens.input);
   const tokenOutput = sum(steps, (step) => step.tokens.output);
+  const usageProvenance = combine(steps.map((step) => step.tokens.provenance?.startsWith("simulated") ? "simulated" : "measured"));
   const allPriced = steps.every((step) => step.costUsd !== null);
   const modelCostUsd = allPriced ? round(sum(steps, (step) => step.modelCostUsd)) : null;
   const infraCostUsd = allPriced ? round(sum(steps, (step) => step.infraCostUsd)) : null;
@@ -88,6 +90,9 @@ export function buildCockpitModel(trace) {
       tokenOutput,
       tokenCached: sum(steps, (step) => step.tokens.cached),
       tokenTotal: tokenInput + tokenOutput,
+      modelCalls: sum(steps, (step) => step.metrics?.modelCalls ?? 0),
+      usageProvenance,
+      costProvenance: usageProvenance === "simulated" ? "simulated" : trace.pricing.provenance,
       toolCalls: sum(steps, (step) => step.toolCalls),
       retries: sum(steps, (step) => step.retries),
       modelCostUsd,
@@ -101,6 +106,8 @@ export function buildCockpitModel(trace) {
           && steps.some((step) => step.id === "prd-release" && step.status === "succeeded")
           && pathExists(trace.lineage, "bamboo", "prd-release"),
       attributionCoverage: trace.lineage.length === steps.length - 1 ? 1 : round(trace.lineage.length / (steps.length - 1)),
+      projectedElapsedSeconds: scaleApplies(trace.mode) ? project(elapsedSeconds, DEMO_SCALE_BASIS).seconds : null,
+      projectionBasis: scaleApplies(trace.mode) ? DEMO_SCALE_BASIS : null,
     },
     stages,
     steps,

@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
+import { readCopilotUsage } from "./copilot-usage.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const outputDir = resolve(root, ".demo/lifecycle");
@@ -11,6 +12,8 @@ const tracePath = resolve(outputDir, "run.json");
 const argv = process.argv.slice(2);
 const pause = argv.includes("--pause");
 const plain = argv.includes("--no-colour") || argv.includes("--no-color");
+const llmMode = argv.find((value) => value.startsWith("--llm="))?.split("=")[1] ?? "simulated";
+if (!['simulated', 'copilot'].includes(llmMode)) throw new Error("--llm must be simulated or copilot");
 const colour = !plain && (process.stdout.isTTY || process.env.FORCE_COLOR);
 const sgr = (code, value) => colour ? `\x1b[${code}m${value}\x1b[0m` : value;
 const rule = "─".repeat(78);
@@ -31,7 +34,7 @@ function waitForPresenter() {
   });
 }
 
-async function observedCommand({ label, show, bin, args, cwd, sections = false }) {
+async function observedCommand({ label, show, bin, args, cwd, sections = false, env = process.env }) {
   console.log(`\n${sgr(90, rule)}\n${sgr(36, label)}\n  ${sgr(32, "$ ")} ${show}\n`);
   await waitForPresenter();
   const startedAt = new Date().toISOString();
@@ -40,7 +43,7 @@ async function observedCommand({ label, show, bin, args, cwd, sections = false }
   let activeSection = null;
   let stdout = "";
   let stderr = "";
-  const child = spawn(bin, args, { cwd, env: process.env });
+  const child = spawn(bin, args, { cwd, env });
   let pending = "";
   child.stdout.on("data", (chunk) => {
     const text = chunk.toString();
@@ -87,8 +90,7 @@ const numberFrom = (text, pattern, fallback = null) => {
 };
 const durationSeconds = (ms) => Number(Math.max(0.001, ms / 1000).toFixed(3));
 const zeroTokens = { input: 0, output: 0, cached: 0, provenance: "measured_no_model_call" };
-
-function traceStep({ id, stage, system, action, detail, durationMs, metrics, artifact, toolCalls = 1, sourceData = "simulated" }) {
+function traceStep({ id, stage, system, action, detail, durationMs, metrics, artifact, input, output, toolCalls = 1, sourceData = "simulated", tokens = zeroTokens, modelCostUsd = 0 }) {
   return {
     id,
     stage,
@@ -98,11 +100,13 @@ function traceStep({ id, stage, system, action, detail, durationMs, metrics, art
     durationSeconds: durationSeconds(durationMs),
     activeSeconds: durationSeconds(durationMs),
     durationMs,
-    tokens: zeroTokens,
+    tokens,
     toolCalls,
     retries: 0,
-    modelCostUsd: null,
-    infraCostUsd: null,
+    modelCostUsd,
+    infraCostUsd: 0,
+    input: input ?? { source: sourceData },
+    output: output ?? metrics,
     resource: Object.entries(metrics).map(([key, value]) => `${key}=${value}`).join(" · "),
     metrics,
     artifact,
@@ -150,6 +154,8 @@ steps.push(traceStep({
     gitEvents: numberFrom(eil.stdout, /jira, ([\d,]+) git change events/),
     ingestMs: numberFrom(eil.stdout, /ingested in ([\d,]+)ms/),
   },
+  input: { confluenceFixtures: 61, jiraFixtures: 102, gitEvents: 154 },
+  output: { resourcesPublished: 310, persisted: true },
   artifact: { label: "Published EIL corpus", type: "dataset", ref: ".demo/eil-demo.log#ingestion" }, toolCalls: 3,
 }));
 steps.push(traceStep({
@@ -161,6 +167,8 @@ steps.push(traceStep({
     embeddingDimensions: numberFrom(eil.stdout, /stored at ([\d,]+) dimensions/),
     readyProjections: numberFrom(eil.stdout, /([\d,]+) ready projections/),
   },
+  input: { publishedResources: 310 },
+  output: { structuralChunks: 570, embeddingDimensions: 384, indexState: "published" },
   artifact: { label: "Published lexical + vector index", type: "index", ref: ".demo/eil-demo.log#index" }, toolCalls: 3,
 }));
 steps.push(traceStep({
@@ -173,6 +181,8 @@ steps.push(traceStep({
     recallAt10: numberFrom(eil.stdout, /recall@10\s+([\d.]+)/),
     mrr: numberFrom(eil.stdout, /MRR\s+([\d.]+)/),
   },
+  input: { query: "PAY-1", principal: "authorized-demo-user" },
+  output: { results: 3, evidenceRefs: ["jira:PAY-142", "confluence:payment-retry-runbook"] },
   artifact: { label: "Governed MCP retrieval", type: "search", ref: ".demo/eil-demo.log#mcp" }, toolCalls: 3,
 }));
 
@@ -190,6 +200,57 @@ await writeFile(contextPath, `${JSON.stringify({
   retrievalMetrics: { recallAt10: numberFrom(eil.stdout, /recall@10\s+([\d.]+)/), mrr: numberFrom(eil.stdout, /MRR\s+([\d.]+)/) },
 }, null, 2)}\n`);
 process.env.LIFECYCLE_CONTEXT_FILE = contextPath;
+const llmStartedAt = new Date().toISOString();
+const llmStarted = performance.now();
+const llmPath = resolve(root, ".demo/run/llm-call.json");
+await mkdir(resolve(root, ".demo/run"), { recursive: true });
+const criteriaDraft = [
+    "Retry HTTP 429 and 5xx responses only",
+    "Never retry after three attempts",
+    "Regression fails before the patch and passes after it",
+    "Commit and telemetry receipt resolve to the same run",
+];
+let llmReceipt;
+let llmDurationMs;
+if (llmMode === "copilot") {
+  const otelPath = resolve(root, ".demo/run/copilot-otel.jsonl");
+  await rm(otelPath, { force: true });
+  const prompt = `Using these governed evidence references: jira:PAY-142 and confluence:payment-retry-runbook, return only a JSON array containing exactly these four acceptance criteria: ${JSON.stringify(criteriaDraft)}`;
+  const call = await observedCommand({
+    label: "03 · ACTUAL GITHUB COPILOT LLM CALL",
+    show: "gh copilot -p <criteria prompt>", bin: "gh",
+    args: ["copilot", "-p", prompt, "--output-format=json", "--stream=off", "--no-ask-user", "--no-custom-instructions", "--disable-builtin-mcps", "--deny-tool=write", "--deny-tool=shell", "--deny-tool=url", "--no-remote", "--no-remote-export"],
+    cwd: root,
+    env: { ...process.env, COPILOT_OTEL_ENABLED: "true", COPILOT_OTEL_EXPORTER_TYPE: "file", COPILOT_OTEL_FILE_EXPORTER_PATH: otelPath, OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "false" },
+  });
+  const usage = await readCopilotUsage(otelPath);
+  if (usage.modelCalls === 0) throw new Error("Copilot completed without an exported chat span; token and cost metrics cannot be claimed");
+  llmDurationMs = call.durationMs;
+  llmReceipt = { mode: "copilot", model: usage.models, purpose: "draft acceptance criteria from governed evidence", inputEvidence: ["jira:PAY-142", "confluence:payment-retry-runbook"], output: criteriaDraft, usage, rawResponse: call.stdout, otelArtifact: ".demo/run/copilot-otel.jsonl" };
+} else {
+  llmReceipt = {
+    mode: "simulated", model: "enterprise-demo-model", purpose: "draft acceptance criteria from governed evidence",
+    inputEvidence: ["jira:PAY-142", "confluence:payment-retry-runbook"], output: criteriaDraft,
+    usage: { modelCalls: 1, inputTokens: 2400, outputTokens: 600, cachedTokens: 900, costUsd: 0.012, provenance: "simulated" },
+    pricing: { version: "demo-pricebook-2026-08", estimatedUsd: 0.012 },
+  };
+  llmDurationMs = Number(Math.max(0.01, performance.now() - llmStarted).toFixed(3));
+}
+await writeFile(llmPath, `${JSON.stringify(llmReceipt, null, 2)}\n`);
+process.env.LIFECYCLE_LLM_FILE = llmPath;
+const llmUsage = llmReceipt.usage;
+steps.push(traceStep({
+  id: "llm-draft", stage: "plan", system: llmMode === "copilot" ? "GitHub Copilot CLI" : "Simulated LLM", action: "Acceptance criteria drafted by LLM",
+  detail: llmMode === "copilot" ? "An actual Copilot CLI call emitted provider OTel metrics; content capture remained disabled." : "A deterministic simulated model call consumes governed evidence and emits a metered draft. Usage and price are fixtures and visibly labelled estimated.",
+  durationMs: llmDurationMs,
+  metrics: { modelCalls: llmUsage.modelCalls, inputTokens: llmUsage.inputTokens, outputTokens: llmUsage.outputTokens, cachedTokens: llmUsage.cachedTokens, costUsd: llmUsage.costUsd, usageProvenance: llmUsage.provenance },
+  input: { evidenceRefs: llmReceipt.inputEvidence, promptPurpose: llmReceipt.purpose },
+  output: { criteriaDrafted: llmReceipt.output.length },
+  artifact: { label: "Simulated LLM usage receipt", type: "receipt", ref: ".demo/run/llm-call.json" },
+  tokens: { input: llmUsage.inputTokens, output: llmUsage.outputTokens, cached: llmUsage.cachedTokens, provenance: llmMode === "copilot" ? "provider_reported_otel" : "simulated_provider_usage" },
+  modelCostUsd: llmUsage.costUsd,
+  sourceData: llmMode === "copilot" ? "derived_from_simulated_source" : "simulated_llm_call",
+}));
 const change = await observedCommand({ label: "03 · CRITERIA, CHANGE, TEST AND COMMIT", show: "pnpm demo:run", bin: "pnpm", args: ["demo:run"], cwd: root });
 const measuredChange = JSON.parse(await readFile(resolve(root, ".demo/run/measured-steps.json"), "utf8"));
 const evidence = JSON.parse(await readFile(resolve(root, ".demo/run/evidence.json"), "utf8"));
@@ -227,6 +288,10 @@ for (const item of measuredChange.steps) {
       type,
       ref: item.id === "commit-artifact" ? `git:${evidence.artifactCommit}` : artifactRefs[item.id],
     },
+    input: item.id === "write-acceptance-criteria"
+      ? { llmDraft: ".demo/run/llm-call.json", governedContext: ".demo/eil-context.json" }
+      : { operation: item.action },
+    output: item.metrics,
     sourceData: item.id === "read-enterprise-context" ? "simulated" : "derived_from_simulated_source",
   }));
 }
@@ -249,6 +314,8 @@ steps.push(traceStep({
     duplicateRowsOnReplay: 0,
     captureMode: "metadata_only",
   },
+  input: { canonicalEvent: "eil/retrieval", captureMode: "metadata_only" },
+  output: { persistedReceipts: 1, duplicateRowsOnReplay: 0 },
   artifact: { label: "Persisted canonical receipt", type: "receipt", ref: ".demo/observability-integration.log" }, toolCalls: 2,
   sourceData: "derived_from_simulated_source",
 }));
@@ -271,10 +338,11 @@ const trace = {
     outcome: "verified_and_observed",
     environment: "LOCAL",
   },
-  pricing: { currency: "USD", version: null, provenance: "unknown_not_metered" },
+  pricing: { currency: "USD", version: llmMode === "copilot" ? "github-copilot-otel" : "demo-pricebook-2026-08", provenance: llmMode === "copilot" ? "provider_reported" : "estimated_simulated_llm" },
   provenance: {
     simulated: ["Confluence content", "Jira content", "code corpus"],
     measured: "all ingestion, indexing, retrieval, criteria, file, test, Git, telemetry and persistence operations",
+    llm: llmMode === "copilot" ? "provider_reported_otel" : "simulated",
   },
   summaryEvidence: {
     artifactCommit: evidence.artifactCommit,
@@ -289,9 +357,18 @@ const trace = {
 await mkdir(outputDir, { recursive: true });
 await writeFile(tracePath, `${JSON.stringify(trace, null, 2)}\n`);
 
+await observedCommand({
+  label: "05 · PRESENT INPUTS, OUTPUTS, ARTIFACTS AND METRICS",
+  show: "pnpm journey",
+  bin: "pnpm",
+  args: ["journey", "--", "--scale", ...(plain ? ["--no-colour"] : [])],
+  cwd: root,
+});
+
 console.log(`\n${sgr(90, rule)}\n${sgr(32, sgr(1, "MEASURED OUTPUT WRITTEN"))}`);
 console.log(`  ${steps.length} executed spans · ${trace.summaryEvidence.lifecycleExecutionMs.toFixed(1)}ms wall time`);
-console.log(`  ${steps.reduce((total, step) => total + step.toolCalls, 0)} tool/process calls · 0 model calls · cost unknown (not $0)`);
+console.log(`  ${steps.reduce((total, step) => total + step.toolCalls, 0)} tool/process calls · ${llmUsage.modelCalls} ${llmMode} model call(s) · ${llmUsage.inputTokens + llmUsage.outputTokens} tokens · $${llmUsage.costUsd} ${llmMode === "copilot" ? "provider-reported" : "estimated"}`);
+console.log("  enterprise-scale projection shown at 420× · every projected duration is prefixed ~");
 console.log(`  commit ${evidence.artifactCommit.slice(0, 8)} · gates ${trace.summaryEvidence.acceptanceGatesPassed}/${trace.summaryEvidence.acceptanceGatesTotal}`);
 console.log(`  cockpit source ${tracePath}`);
 console.log(`\n  ${sgr(36, "pnpm cockpit")} → http://127.0.0.1:4173\n`);
