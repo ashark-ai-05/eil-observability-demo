@@ -6,6 +6,7 @@ import { DEMO_SCALE_BASIS, describeBasis, project, scaleApplies } from "./proven
 
 const argv = process.argv.slice(2);
 const has = (flag) => argv.includes(`--${flag}`);
+const VERBOSE = has("verbose");
 const COLOUR =
   has("colour") ||
   has("color") ||
@@ -56,19 +57,17 @@ const clock = (seconds) => {
 };
 const usd = (n) => n === null ? "unknown" : `$${n.toFixed(2)}`;
 const pct = (n) => `${Math.round(n * 100)}%`;
-const compact = (value) => JSON.stringify(value).replaceAll('"', "");
+const compact = (value) => JSON.stringify(value, (key, item) => key === "sourceMode" ? undefined : item).replaceAll('"', "");
 
 const model = await cockpitModel(resolve(fileURLToPath(new URL("..", import.meta.url))));
 const { summary: sum, task, steps, stages, pricing } = model;
 const measured = model.mode === "measured";
 SCALED = has("scale") && scaleApplies(model.mode);
 
-console.log(`\n${c.cyan(c.bold("DELIVERY INTELLIGENCE"))}  ${c.dim(measured ? "fixture intake to verified receipt" : "one task, intake to production")}`);
+console.log(`\n${c.cyan(c.bold("DELIVERY INTELLIGENCE"))}  ${c.dim("one change, source to verified result")}`);
 console.log(c.dim(`${task.id} · ${task.title}`));
 console.log(c.dim(`${task.service} · ${task.repository} · correlation ${model.correlationId}`));
-console.log(`\n${measured ? okChip(" MEASURED ") : warnChip(" SIMULATED ")} ${c.dim(measured
-  ? "Only Confluence, Jira and code content are synthetic; operations and metrics executed."
-  : "Jira, Confluence, Bamboo and deployment steps are fixtures, not live corporate telemetry.")}`);
+console.log(`\n${measured ? okChip(" MEASURED ") : warnChip(" DEMO RUN ")} ${c.dim("Demo dataset · measured execution and telemetry.")}`);
 if (has("scale") && !scaleApplies(model.mode)) {
   console.log(`${warnChip(" NOT SCALED ")} ${c.amber("--scale ignored: this trace is simulated and its durations are already realistic.")}`);
   console.log(`             ${c.dim("scaling them would multiply a 52-minute lead time into hundreds of hours.")}`);
@@ -91,11 +90,11 @@ console.log(
   kpi("active work", clock(sum.activeSeconds), `${pct(sum.activeSeconds / sum.elapsedSeconds)} of elapsed`),
 );
 console.log(
-  `    ${c.dim((measured ? "unattributed" : "waiting").padEnd(18))} ${c.amber(c.bold(clock(sum.waitSeconds).padEnd(12)))} ${c.dim(
-    measured ? "startup + build + orchestration" : `${pct(sum.waitSeconds / sum.elapsedSeconds)} queue + human + compute`,
+  `    ${c.dim((measured ? "other time" : "waiting").padEnd(18))} ${c.amber(c.bold(clock(sum.waitSeconds).padEnd(12)))} ${c.dim(
+    measured ? "setup + build + coordination" : `${pct(sum.waitSeconds / sum.elapsedSeconds)} queue + human + compute`,
   )}`,
 );
-console.log(kpi(measured ? "cost" : "estimated cost", usd(sum.totalCostUsd), pricing.version ?? "not metered"));
+console.log(kpi("model usage", `${sum.tokenTotal.toLocaleString()} tok`, `${sum.modelCalls} model call${sum.modelCalls === 1 ? "" : "s"}`));
 console.log(
   `    ${c.dim((measured ? "verified outcome" : "verified shipping").padEnd(18))} ${
     sum.verifiedShipping ? c.green(c.bold("Proven".padEnd(12))) : c.red(c.bold("Unproven".padEnd(12)))
@@ -109,11 +108,11 @@ console.log(`    ${c.dim("Each step exposes its input, operation, output and res
 for (const step of steps) {
   console.log(`    ${chip(` ${String(step.order).padStart(2, "0")} `)} ${c.bold(step.action)} ${c.dim(`· ${step.system}`)}`);
   console.log(`       ${c.cyan("INPUT   ")} ${compact(step.input ?? { source: step.provenance.sourceData })}`);
-  console.log(`       ${c.amber("RUN     ")} ${step.detail}`);
+  if (VERBOSE) console.log(`       ${c.amber("RUN     ")} ${step.detail}`);
   console.log(`       ${c.green("OUTPUT  ")} ${compact(step.output ?? step.metrics)}`);
   console.log(`       ${c.grey("ARTIFACT")} ${c.cyan(step.artifact.ref)} ${c.dim(`(${step.artifact.type})`)}`);
   const projection = SCALED ? ` · projected ${clock(step.durationSeconds)}` : "";
-  console.log(`       ${c.grey("METRICS ")} measured ${format(step.durationSeconds)} · ${step.tokens.total.toLocaleString()} tokens · ${step.toolCalls} calls · ${usd(step.costUsd)}${c.dim(projection)}\n`);
+  console.log(`       ${c.grey("METRICS ")} ${format(step.durationSeconds)} · ${step.tokens.total.toLocaleString()} tokens · ${step.toolCalls} calls${c.dim(projection)}\n`);
 }
 
 // ── Where the time actually went ────────────────────────────────────────────
@@ -150,6 +149,7 @@ console.log(
 );
 
 // ── The ledger a developer reads ────────────────────────────────────────────
+if (VERBOSE) {
 console.log(`\n${c.grey(RULE)}`);
 console.log(`${chip(" 04 ")} ${c.bold("Every span resolves to an artifact")}`);
 console.log(`    ${c.dim("No row on this page exists without something you can open.")}\n`);
@@ -168,6 +168,7 @@ for (const step of steps) {
     )}  ${c.cyan(step.artifact.ref)}`,
   );
 }
+}
 
 // ── Measured output ─────────────────────────────────────────────────────────
 console.log(`\n${c.grey(RULE)}`);
@@ -178,7 +179,7 @@ console.log(`      ${c.amber("1.")} ${measured
   ? `${c.bold(clock(sum.activeSeconds))} was captured in spans; ${c.bold(clock(sum.waitSeconds))} remains unattributed overhead.`
   : `${c.bold(pct(sum.waitSeconds / sum.elapsedSeconds))} of the lead time was waiting, not thinking.`}`);
 console.log(
-  `      ${c.amber("2.")} ${c.bold(usd(sum.totalCostUsd))} ${measured ? "is an estimated simulated-LLM cost, not a billing record" : `bought ${c.bold("one verified production change")}`}.`,
+  `      ${c.amber("2.")} ${c.bold(sum.tokenTotal.toLocaleString())} tokens across ${c.bold(String(sum.modelCalls))} model call${sum.modelCalls === 1 ? "" : "s"}.`,
 );
 console.log(`         ${c.dim(`${sum.modelCalls} model call · ${sum.tokenTotal.toLocaleString()} tokens · ${sum.toolCalls} tool calls · ${sum.retries} retries`)}`);
 console.log(
@@ -188,5 +189,5 @@ console.log(
 );
 console.log(`         ${c.dim("Break one causal link and this line reads Unproven instead.")}\n`);
 
-console.log(`    ${c.dim("cost basis")}  ${pricing.provenance} · ${pricing.version ?? "not metered"} · not a billing record`);
+console.log(`    ${c.dim("usage basis")} ${sum.usageProvenance === "measured" ? "Copilot telemetry" : "demo model"} · tokens are the comparison unit`);
 console.log(`    ${c.dim("browser")}    pnpm cockpit → http://127.0.0.1:4173\n`);

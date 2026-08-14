@@ -11,6 +11,7 @@ const outputDir = resolve(root, ".demo/lifecycle");
 const tracePath = resolve(outputDir, "run.json");
 const argv = process.argv.slice(2);
 const pause = argv.includes("--pause");
+const verbose = argv.includes("--verbose");
 const plain = argv.includes("--no-colour") || argv.includes("--no-color");
 const llmMode = argv.find((value) => value.startsWith("--llm="))?.split("=")[1] ?? "simulated";
 if (!['simulated', 'copilot'].includes(llmMode)) throw new Error("--llm must be simulated or copilot");
@@ -34,7 +35,7 @@ function waitForPresenter() {
   });
 }
 
-async function observedCommand({ label, show, bin, args, cwd, sections = false, env = process.env }) {
+async function observedCommand({ label, show, bin, args, cwd, sections = false, stream = false, env = process.env }) {
   console.log(`\n${sgr(90, rule)}\n${sgr(36, label)}\n  ${sgr(32, "$ ")} ${show}\n`);
   await waitForPresenter();
   const startedAt = new Date().toISOString();
@@ -48,7 +49,7 @@ async function observedCommand({ label, show, bin, args, cwd, sections = false, 
   child.stdout.on("data", (chunk) => {
     const text = chunk.toString();
     stdout += text;
-    process.stdout.write(text);
+    if (verbose || stream) process.stdout.write(text);
     if (!sections) return;
     pending += text;
     const lines = pending.split(/\r?\n/);
@@ -68,7 +69,7 @@ async function observedCommand({ label, show, bin, args, cwd, sections = false, 
   child.stderr.on("data", (chunk) => {
     const text = chunk.toString();
     stderr += text;
-    process.stderr.write(text);
+    if (verbose || stream) process.stderr.write(text);
   });
   const status = await new Promise((done, reject) => {
     child.on("error", reject);
@@ -81,6 +82,7 @@ async function observedCommand({ label, show, bin, args, cwd, sections = false, 
     delete activeSection.started;
   }
   if (status !== 0) throw new Error(`${show} failed with ${status}: ${stderr.slice(-500)}`);
+  console.log(`  ${sgr(32, "✓")} ${label.replace(/^\d+ · /, "")} ${sgr(90, `${durationMs.toFixed(0)}ms`)}`);
   return { label, startedAt, endedAt, durationMs, stdout, sections: observedSections };
 }
 
@@ -121,8 +123,8 @@ await mkdir(outputDir, { recursive: true });
 const lifecycleStartedAt = new Date().toISOString();
 const lifecycleStarted = performance.now();
 
-console.log(`\n${sgr(36, sgr(1, "MEASURED DELIVERY LIFECYCLE"))}  synthetic corpus · real execution`);
-console.log("Only Confluence, Jira and code content are fixtures. Every operation and metric below executes.");
+console.log(`\n${sgr(36, sgr(1, "DELIVERY LIFECYCLE"))}  demo dataset · measured execution`);
+console.log("Follow one change from source material to verified evidence.");
 
 const eil = await observedCommand({
   label: "01 · INGEST AND INDEX THE KNOWLEDGE PLANE",
@@ -144,7 +146,7 @@ const evaluation = section("Evaluation");
 const mcp = section("MCP tool surface");
 
 steps.push(traceStep({
-  id: "ingest", stage: "understand", system: "EIL ingestion pipeline", action: "Fixture corpus ingested",
+  id: "ingest", stage: "understand", system: "EIL ingestion pipeline", action: "Source material ingested",
   detail: "Real scope, cursor, hashing, normalization, ACL and persistence code processed synthetic Confluence, Jira and Git content.",
   durationMs: (ingestion?.durationMs ?? 0) + (synthetic?.durationMs ?? 0),
   metrics: {
@@ -154,7 +156,7 @@ steps.push(traceStep({
     gitEvents: numberFrom(eil.stdout, /jira, ([\d,]+) git change events/),
     ingestMs: numberFrom(eil.stdout, /ingested in ([\d,]+)ms/),
   },
-  input: { confluenceFixtures: 61, jiraFixtures: 102, gitEvents: 154 },
+  input: { confluencePages: 61, jiraIssues: 102, gitEvents: 154 },
   output: { resourcesPublished: 310, persisted: true },
   artifact: { label: "Published EIL corpus", type: "dataset", ref: ".demo/eil-demo.log#ingestion" }, toolCalls: 3,
 }));
@@ -249,13 +251,13 @@ await writeFile(llmPath, `${JSON.stringify(llmReceipt, null, 2)}\n`);
 process.env.LIFECYCLE_LLM_FILE = llmPath;
 const llmUsage = llmReceipt.usage;
 steps.push(traceStep({
-  id: "llm-draft", stage: "plan", system: llmMode === "copilot" ? "GitHub Copilot CLI" : "Simulated LLM", action: "Acceptance criteria drafted by LLM",
-  detail: llmMode === "copilot" ? "An actual Copilot CLI call emitted provider OTel metrics; content capture remained disabled." : "A deterministic simulated model call consumes governed evidence and emits a metered draft. Usage and price are fixtures and visibly labelled estimated.",
+  id: "llm-draft", stage: "plan", system: llmMode === "copilot" ? "GitHub Copilot CLI" : "Demo model", action: "Acceptance criteria drafted",
+  detail: llmMode === "copilot" ? "Copilot drafted the criteria and reported token telemetry." : "The demo model drafted criteria from the retrieved evidence.",
   durationMs: llmDurationMs,
   metrics: { modelCalls: llmUsage.modelCalls, inputTokens: llmUsage.inputTokens, outputTokens: llmUsage.outputTokens, cachedTokens: llmUsage.cachedTokens, costUsd: llmUsage.costUsd, usageProvenance: llmUsage.provenance },
   input: { evidenceRefs: llmReceipt.inputEvidence, promptPurpose: llmReceipt.purpose },
   output: { criteriaDrafted: llmReceipt.output.length },
-  artifact: { label: "Simulated LLM usage receipt", type: "receipt", ref: ".demo/run/llm-call.json" },
+  artifact: { label: "LLM usage receipt", type: "receipt", ref: ".demo/run/llm-call.json" },
   tokens: { input: llmUsage.inputTokens, output: llmUsage.outputTokens, cached: llmUsage.cachedTokens, provenance: llmMode === "copilot" ? "provider_reported_otel" : "simulated_provider_usage" },
   modelCostUsd: llmUsage.costUsd,
   sourceData: llmMode === "copilot" ? "derived_from_simulated_source" : "simulated_llm_call",
@@ -370,13 +372,14 @@ await observedCommand({
   label: "05 · PRESENT INPUTS, OUTPUTS, ARTIFACTS AND METRICS",
   show: "pnpm journey",
   bin: "pnpm",
-  args: ["journey", "--", "--scale", ...(plain ? ["--no-colour"] : [])],
+  args: ["journey", "--", "--scale", ...(verbose ? ["--verbose"] : []), ...(plain ? ["--no-colour"] : [])],
   cwd: root,
+  stream: true,
 });
 
 console.log(`\n${sgr(90, rule)}\n${sgr(32, sgr(1, "MEASURED OUTPUT WRITTEN"))}`);
 console.log(`  ${steps.length} executed spans · ${trace.summaryEvidence.lifecycleExecutionMs.toFixed(1)}ms wall time`);
-console.log(`  ${steps.reduce((total, step) => total + step.toolCalls, 0)} tool/process calls · ${llmUsage.modelCalls} ${llmMode} model call(s) · ${llmUsage.inputTokens + llmUsage.outputTokens} tokens · ${llmUsage.costUsd === null ? "cost unknown" : `$${llmUsage.costUsd} estimated`}`);
+console.log(`  ${steps.reduce((total, step) => total + step.toolCalls, 0)} tool/process calls · ${llmUsage.modelCalls} model call(s) · ${llmUsage.inputTokens + llmUsage.outputTokens} tokens`);
 console.log("  enterprise-scale projection shown at 420× · every projected duration is prefixed ~");
 console.log(`  commit ${evidence.artifactCommit.slice(0, 8)} · gates ${trace.summaryEvidence.acceptanceGatesPassed}/${trace.summaryEvidence.acceptanceGatesTotal}`);
 console.log(`  cockpit source ${tracePath}`);

@@ -27,6 +27,64 @@ disbelieve everything else on the page.
 
 Nothing is pre-recorded; re-running re-derives every figure.
 
+## Running it in front of people
+
+### Set up once
+
+```bash
+export EIL_REPO=../enterprise-intelligence-layer
+export OBSERVABILITY_REPO=../enterprise-ai-observability
+pnpm install --frozen-lockfile
+```
+
+### Before you present, check what the cockpit will actually show
+
+```bash
+pnpm status
+```
+
+```
+ MEASURED  the cockpit will show .demo/lifecycle/run.json
+           recorded 3 minute(s) ago
+```
+
+**Run this after any reset.** `pnpm demo:reset` deletes `.demo`, and that is
+also where `pnpm lifecycle` writes the measured run record. With the record
+gone the cockpit falls back to `scenario/delivery-lifecycle.json` — no error,
+no warning, and nothing on screen to tell you which one you are narrating. The
+one command that distinguishes them is this one. It exits non-zero when the
+cockpit would serve fixture data, so it also works as a preflight in a script.
+
+### The order that works
+
+```bash
+pnpm status                 # what will the cockpit show?
+pnpm lifecycle              # run it — writes a fresh measured record
+pnpm cockpit                # browser view, http://127.0.0.1:4173
+```
+
+### Step through it one command at a time
+
+```bash
+pnpm lifecycle -- --pause
+```
+
+Waits for Enter between acts, so you can talk over each one. `--no-colour`
+gives a plain log for a terminal that mangles ANSI, and `pnpm journey`
+is the same run as a single terminal page if you would rather not switch to a
+browser mid-talk.
+
+### Start over
+
+```bash
+pnpm demo:reset             # clears .demo and re-seeds the incident repo
+pnpm status                 # will now report FIXTURE until you re-run lifecycle
+```
+
+Resetting between rehearsals is the right habit — the incident repo has to be
+back at its seeded commit for the defect to reproduce. Just re-run
+`pnpm lifecycle` afterwards, and check `pnpm status` before you speak.
+
 ## The real integration test
 
 Everything else here validates hand-written fixtures against a vendored copy of
@@ -397,7 +455,12 @@ For the audience-facing delivery intelligence demo:
 ```bash
 EIL_REPO=/path/to/enterprise-intelligence-layer \
 OBSERVABILITY_REPO=/path/to/enterprise-ai-observability \
-pnpm lifecycle          # add -- --pause to step through it in front of a room
+pnpm lifecycle
+
+# Presenter mode: press Enter before each executable phase
+EIL_REPO=/path/to/enterprise-intelligence-layer \
+OBSERVABILITY_REPO=/path/to/enterprise-ai-observability \
+pnpm lifecycle -- --pause
 
 pnpm cockpit            # browser command center
 pnpm journey            # delivery-trace act only; no product execution
@@ -409,8 +472,41 @@ failing regression → code change → passing regression → commit → canonic
 receipt → real Observability persistence and idempotent replay. It displays the
 actual durations, document/chunk/result counts, tool/process calls, test exit
 codes, commit SHA, gates and receipt facts captured during that run.
-It also shows the simulated LLM usage/cost and the separately labelled 180×
+It uses tokens as the model-consumption unit and shows the separately labelled 420×
 enterprise-scale projection. The measured figures remain available beside it.
+
+### Set, present, and reset
+
+The lifecycle is resettable and safe to repeat. `pnpm lifecycle` resets its
+controlled change automatically before applying it. For a clean presentation:
+
+```bash
+# Set: verify dependencies and start from clean generated state
+pnpm install --frozen-lockfile
+pnpm check
+pnpm demo:reset
+
+# Present one phase at a time (press Enter at each prompt)
+EIL_REPO=../enterprise-intelligence-layer \
+OBSERVABILITY_REPO=../enterprise-ai-observability \
+pnpm lifecycle -- --pause
+
+# Use a real Copilot call (may consume paid AI credits)
+EIL_REPO=../enterprise-intelligence-layer \
+OBSERVABILITY_REPO=../enterprise-ai-observability \
+pnpm lifecycle -- --pause --llm=copilot
+
+# Open the resulting measured run
+pnpm cockpit
+
+# Reset only generated demo state before another run
+pnpm demo:reset
+```
+
+Default output is concise and audience-facing. Add `--verbose` to either
+lifecycle command when diagnosing product subprocess output. Generated state
+lives under `.demo/`; restored repositories and installed dependencies are not
+removed by `pnpm demo:reset`.
 
 The provenance boundary is narrow and visible: Confluence, Jira and code
 **content** are deterministic fixtures; the storage, ingestion, normalization,
