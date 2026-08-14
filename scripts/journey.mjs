@@ -57,7 +57,7 @@ const clock = (seconds) => {
 };
 const usd = (n) => n === null ? "unknown" : `$${n.toFixed(2)}`;
 const pct = (n) => `${Math.round(n * 100)}%`;
-const compact = (value) => JSON.stringify(value).replaceAll('"', "");
+const compact = (value) => JSON.stringify(value, (key, item) => key === "sourceMode" ? undefined : item).replaceAll('"', "");
 
 const model = await cockpitModel(resolve(fileURLToPath(new URL("..", import.meta.url))));
 const { summary: sum, task, steps, stages, pricing } = model;
@@ -90,8 +90,8 @@ console.log(
   kpi("active work", clock(sum.activeSeconds), `${pct(sum.activeSeconds / sum.elapsedSeconds)} of elapsed`),
 );
 console.log(
-  `    ${c.dim((measured ? "unattributed" : "waiting").padEnd(18))} ${c.amber(c.bold(clock(sum.waitSeconds).padEnd(12)))} ${c.dim(
-    measured ? "startup + build + orchestration" : `${pct(sum.waitSeconds / sum.elapsedSeconds)} queue + human + compute`,
+  `    ${c.dim((measured ? "other time" : "waiting").padEnd(18))} ${c.amber(c.bold(clock(sum.waitSeconds).padEnd(12)))} ${c.dim(
+    measured ? "setup + build + coordination" : `${pct(sum.waitSeconds / sum.elapsedSeconds)} queue + human + compute`,
   )}`,
 );
 console.log(kpi("model usage", `${sum.tokenTotal.toLocaleString()} tok`, `${sum.modelCalls} model call${sum.modelCalls === 1 ? "" : "s"}`));
@@ -189,5 +189,5 @@ console.log(
 );
 console.log(`         ${c.dim("Break one causal link and this line reads Unproven instead.")}\n`);
 
-console.log(`    ${c.dim("usage basis")} ${sum.usageProvenance} · tokens are the comparison unit`);
+console.log(`    ${c.dim("usage basis")} ${sum.usageProvenance === "measured" ? "Copilot telemetry" : "demo model"} · tokens are the comparison unit`);
 console.log(`    ${c.dim("browser")}    pnpm cockpit → http://127.0.0.1:4173\n`);

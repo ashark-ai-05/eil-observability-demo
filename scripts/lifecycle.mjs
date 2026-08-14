@@ -156,7 +156,7 @@ steps.push(traceStep({
     gitEvents: numberFrom(eil.stdout, /jira, ([\d,]+) git change events/),
     ingestMs: numberFrom(eil.stdout, /ingested in ([\d,]+)ms/),
   },
-  input: { confluenceFixtures: 61, jiraFixtures: 102, gitEvents: 154 },
+  input: { confluencePages: 61, jiraIssues: 102, gitEvents: 154 },
   output: { resourcesPublished: 310, persisted: true },
   artifact: { label: "Published EIL corpus", type: "dataset", ref: ".demo/eil-demo.log#ingestion" }, toolCalls: 3,
 }));
