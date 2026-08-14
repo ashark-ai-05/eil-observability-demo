@@ -558,30 +558,30 @@
         <g>
           <rect class="st" x="118" y="330" width="228" height="76" rx="10"/>
           <text class="t-xs" x="138" y="352">RUN TIME</text>
-          <text id="obs-elapsed" x="138" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">run lifecycle</text>
-          <text class="t-xs" x="138" y="394">measured during this execution</text>
+          <text id="obs-elapsed" x="138" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">—</text>
+          <text class="t-xs" id="obs-elapsed-cap" x="138" y="394">run `pnpm lifecycle`, then reload</text>
 
           <rect x="394" y="330" width="228" height="76" rx="10"
                 fill="color-mix(in oklab, var(--vec) 9%, var(--panel))"
                 stroke="color-mix(in oklab, var(--vec) 50%, var(--line))"/>
           <text class="t-xs" x="414" y="352">CAPTURED / UNATTRIBUTED</text>
-          <text id="obs-work-wait" x="414" y="378" font-size="20" font-weight="700" fill="var(--vec)" font-family="var(--mono)">unknown</text>
-          <text class="t-xs" x="414" y="394">derived from measured spans</text>
+          <text id="obs-work-wait" x="414" y="378" font-size="20" font-weight="700" fill="var(--vec)" font-family="var(--mono)">—</text>
+          <text class="t-xs" id="obs-work-wait-cap" x="414" y="394">run `pnpm lifecycle`, then reload</text>
 
           <rect class="st" x="670" y="330" width="228" height="76" rx="10"/>
-          <text class="t-xs" x="690" y="352">COST PER OUTCOME</text>
-          <text id="obs-cost" x="690" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">unknown</text>
-          <text class="t-xs" x="690" y="394">no model call is not a priced call</text>
+          <text class="t-xs" x="690" y="352">TOKENS USED</text>
+          <text id="obs-cost" x="690" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">—</text>
+          <text class="t-xs" id="obs-cost-cap" x="690" y="394">run `pnpm lifecycle`, then reload</text>
 
           <rect x="946" y="330" width="228" height="76" rx="10"
                 fill="color-mix(in oklab, var(--ok) 9%, var(--panel))"
                 stroke="color-mix(in oklab, var(--ok) 50%, var(--line))"/>
           <text class="t-xs" x="966" y="352">VERIFIED + OBSERVED</text>
-          <text id="obs-proof" x="966" y="378" font-size="20" font-weight="700" fill="var(--ok)" font-family="var(--mono)">run lifecycle</text>
-          <text class="t-xs" x="966" y="394">real test and ingestion lineage required</text>
+          <text id="obs-proof" x="966" y="378" font-size="20" font-weight="700" fill="var(--ok)" font-family="var(--mono)">—</text>
+          <text class="t-xs" id="obs-proof-cap" x="966" y="394">run `pnpm lifecycle`, then reload</text>
         </g>
 
-        <text class="t-xs" x="18" y="440">A number that cannot be measured is reported as <tspan fill="var(--warn)">unknown</tspan> — never as zero, and never as $0.</text>
+        <text class="t-xs" x="18" y="440">Consumption is shown in tokens because they were measured; billed credits are not in the telemetry.</text>
         <text class="t-xs" x="1182" y="440" text-anchor="end">inference is forbidden from claiming certainty</text>
       </svg>
     </div>
@@ -615,28 +615,33 @@
   for (const id of ids) io.observe(document.getElementById(id));
 
   // When served by `pnpm cockpit`, the observability slide reads the same
-  // captured run as the cockpit. The standalone deck intentionally keeps
-  // unknown placeholders instead of embedding a reference run that can drift.
-  const duration = (seconds) => {
-    if (!Number.isFinite(seconds)) return "unknown";
-    if (seconds < 60) return `${seconds.toFixed(1)}s`;
-    return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+  // captured run as the cockpit, through the same module the terminal views
+  // use — so a figure cannot differ between the deck and the cockpit.
+  //
+  // Standalone (file://) there is no run to read. The tiles then stay at "—"
+  // with the instruction in the caption: an empty value slot reads as "no run
+  // yet", where the words "run lifecycle" sitting where a number belongs read
+  // as a broken number.
+  const paint = (tiles) => {
+    const map = {
+      "obs-elapsed": tiles.elapsed,
+      "obs-work-wait": tiles.split,
+      "obs-cost": tiles.consumption,
+      "obs-proof": tiles.proof,
+    };
+    for (const [id, tile] of Object.entries(map)) {
+      const value = document.getElementById(id);
+      const caption = document.getElementById(`${id}-cap`);
+      if (value) value.textContent = tile.value;
+      if (caption) caption.textContent = tile.caption;
+    }
   };
-  fetch("/api/run")
-    .then((response) => {
+
+  import("/platform-metrics.mjs")
+    .then(async ({ platformTiles }) => {
+      const response = await fetch("/api/run");
       if (!response.ok) throw new Error("run unavailable");
-      return response.json();
-    })
-    .then((run) => {
-      const elapsed = run.summary.elapsedSeconds;
-      const captured = run.steps.reduce((total, step) => total + step.durationSeconds, 0);
-      const capturedPct = elapsed > 0 ? Math.round((captured / elapsed) * 100) : 0;
-      document.getElementById("obs-elapsed").textContent = duration(elapsed);
-      document.getElementById("obs-work-wait").textContent = `${capturedPct} / ${100 - capturedPct}`;
-      document.getElementById("obs-cost").textContent = run.summary.totalCostUsd === null
-        ? "unknown"
-        : `$${run.summary.totalCostUsd.toFixed(2)}`;
-      document.getElementById("obs-proof").textContent = run.summary.verifiedShipping ? "Proven" : "Unproven";
+      paint(platformTiles(await response.json()));
     })
     .catch(() => {});
 </script>

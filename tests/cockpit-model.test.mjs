@@ -86,6 +86,26 @@ test("platform observability slide reads the cockpit run instead of embedding re
   const html = await readFile(resolve(root, "platform/eil-platform.html"), "utf8");
   assert.match(html, /fetch\("\/api\/run"\)/);
   assert.match(html, /id="obs-elapsed"/);
-  assert.match(html, /id="obs-cost"[^>]*>unknown</);
   assert.doesNotMatch(html, /52m 29s|\$0\.54|32 \/ 68/);
+});
+
+test("an unpopulated slide shows an empty value, not words where a number belongs", async () => {
+  const html = await readFile(resolve(root, "platform/eil-platform.html"), "utf8");
+
+  // It previously shipped "run lifecycle" and "unknown" inside a 20px bold
+  // value slot. An audience reads that as a broken number rather than an
+  // absent one; guidance belongs in the caption, at caption size.
+  for (const id of ["obs-elapsed", "obs-work-wait", "obs-cost", "obs-proof"]) {
+    assert.match(html, new RegExp(`id="${id}"[^>]*>—<`), `${id} should default to an em-dash`);
+    assert.match(html, new RegExp(`id="${id}-cap"[^>]*>run \`pnpm lifecycle\``), `${id} needs a caption`);
+  }
+});
+
+test("the slide reports consumption in tokens, never in dollars", async () => {
+  const html = await readFile(resolve(root, "platform/eil-platform.html"), "utf8");
+
+  // Copilot meters in AI credits and omits them from telemetry, so any dollar
+  // figure on this slide would be invented rather than measured.
+  assert.match(html, /TOKENS USED/);
+  assert.doesNotMatch(html, /COST PER OUTCOME/);
 });
