@@ -25,6 +25,15 @@ const server = createServer(async (request, response) => {
       response.end(await readFile(resolve(root, "platform", platform[1])));
       return;
     }
+    // The deck imports the same metric modules the terminal views use, so a
+    // figure cannot differ between surfaces. Served from scripts/, still by
+    // exact name — a prefix test here would be a path-traversal hole.
+    const shared = request.url.match(/^\/(platform-metrics\.mjs|token-metrics\.mjs)$/);
+    if (shared) {
+      response.writeHead(200, { "content-type": types[".js"] });
+      response.end(await readFile(resolve(root, "scripts", shared[1])));
+      return;
+    }
     const relative = request.url === "/" ? "index.html" : request.url.slice(1);
     if (!/^(index\.html|app\.js|styles\.css|presenter\.css)$/.test(relative)) throw new Error("not found");
     response.writeHead(200, { "content-type": types[extname(relative)] ?? "application/octet-stream" });
