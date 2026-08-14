@@ -27,6 +27,64 @@ disbelieve everything else on the page.
 
 Nothing is pre-recorded; re-running re-derives every figure.
 
+## Running it in front of people
+
+### Set up once
+
+```bash
+export EIL_REPO=../enterprise-intelligence-layer
+export OBSERVABILITY_REPO=../enterprise-ai-observability
+pnpm install --frozen-lockfile
+```
+
+### Before you present, check what the cockpit will actually show
+
+```bash
+pnpm status
+```
+
+```
+ MEASURED  the cockpit will show .demo/lifecycle/run.json
+           recorded 3 minute(s) ago
+```
+
+**Run this after any reset.** `pnpm demo:reset` deletes `.demo`, and that is
+also where `pnpm lifecycle` writes the measured run record. With the record
+gone the cockpit falls back to `scenario/delivery-lifecycle.json` — no error,
+no warning, and nothing on screen to tell you which one you are narrating. The
+one command that distinguishes them is this one. It exits non-zero when the
+cockpit would serve fixture data, so it also works as a preflight in a script.
+
+### The order that works
+
+```bash
+pnpm status                 # what will the cockpit show?
+pnpm lifecycle              # run it — writes a fresh measured record
+pnpm cockpit                # browser view, http://127.0.0.1:4173
+```
+
+### Step through it one command at a time
+
+```bash
+pnpm lifecycle -- --pause
+```
+
+Waits for Enter between acts, so you can talk over each one. `--no-colour`
+gives a plain log for a terminal that mangles ANSI, and `pnpm journey`
+is the same run as a single terminal page if you would rather not switch to a
+browser mid-talk.
+
+### Start over
+
+```bash
+pnpm demo:reset             # clears .demo and re-seeds the incident repo
+pnpm status                 # will now report FIXTURE until you re-run lifecycle
+```
+
+Resetting between rehearsals is the right habit — the incident repo has to be
+back at its seeded commit for the defect to reproduce. Just re-run
+`pnpm lifecycle` afterwards, and check `pnpm status` before you speak.
+
 ## The real integration test
 
 Everything else here validates hand-written fixtures against a vendored copy of

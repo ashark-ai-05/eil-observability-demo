@@ -20,7 +20,8 @@
     "test:integration": "node --test integration/*.test.mjs",
     "report": "node scripts/report.mjs",
     "journey": "node scripts/journey.mjs",
-    "lifecycle": "node scripts/lifecycle.mjs"
+    "lifecycle": "node scripts/lifecycle.mjs",
+    "status": "node scripts/demo-status.mjs"
   },
   "dependencies": {
     "ajv": "^8.17.1",
