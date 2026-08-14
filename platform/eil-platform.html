@@ -505,7 +505,7 @@
     <h2>Observability<span class="sub">every answer leaves a receipt</span></h2>
     <div class="scroll">
       <svg class="flow" viewBox="0 0 1200 470" fill="none" role="img"
-           aria-label="A delivery run across five stages, each emitting a canonical event into one ledger. The ledger yields lead time, the split between active work and waiting, cost per accepted outcome, and whether shipping was verified. Capture is metadata-only: a digest of the query is stored, never the query.">
+           aria-label="A measured delivery run across five stages, each emitting a canonical event into one ledger. The ledger yields run time, captured and unattributed time, cost provenance, and whether the verified change was observed. Capture is metadata-only: a digest of the query is stored, never the query.">
 
         <!-- the delivery run, left to right -->
         <g>
@@ -518,7 +518,7 @@
           <rect class="st" x="774" y="34" width="188" height="52" rx="9"/>
           <text class="t-hd" x="792" y="58">Verify</text><text class="t-xs" x="792" y="72">tests · CI gates</text>
           <rect class="st" x="1000" y="34" width="170" height="52" rx="9"/>
-          <text class="t-hd" x="1018" y="58">Release</text><text class="t-xs" x="1018" y="72">outcome</text>
+          <text class="t-hd" x="1018" y="58">Observe</text><text class="t-xs" x="1018" y="72">persist · replay</text>
         </g>
         <g>
           <path class="w lex signal" d="M218 60 L272 60"/><path class="tip" stroke="var(--lex)" d="M266 55 L273 60 L266 65"/>
@@ -557,28 +557,28 @@
 
         <g>
           <rect class="st" x="118" y="330" width="228" height="76" rx="10"/>
-          <text class="t-xs" x="138" y="352">LEAD TIME</text>
-          <text x="138" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">52m 29s</text>
-          <text class="t-xs" x="138" y="394">intake → production</text>
+          <text class="t-xs" x="138" y="352">RUN TIME</text>
+          <text id="obs-elapsed" x="138" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">run lifecycle</text>
+          <text class="t-xs" x="138" y="394">measured during this execution</text>
 
           <rect x="394" y="330" width="228" height="76" rx="10"
                 fill="color-mix(in oklab, var(--vec) 9%, var(--panel))"
                 stroke="color-mix(in oklab, var(--vec) 50%, var(--line))"/>
-          <text class="t-xs" x="414" y="352">WORK vs WAIT</text>
-          <text x="414" y="378" font-size="20" font-weight="700" fill="var(--vec)" font-family="var(--mono)">32 / 68</text>
-          <text class="t-xs" x="414" y="394">most of it was queue, not thinking</text>
+          <text class="t-xs" x="414" y="352">CAPTURED / UNATTRIBUTED</text>
+          <text id="obs-work-wait" x="414" y="378" font-size="20" font-weight="700" fill="var(--vec)" font-family="var(--mono)">unknown</text>
+          <text class="t-xs" x="414" y="394">derived from measured spans</text>
 
           <rect class="st" x="670" y="330" width="228" height="76" rx="10"/>
           <text class="t-xs" x="690" y="352">COST PER OUTCOME</text>
-          <text x="690" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">$0.54</text>
-          <text class="t-xs" x="690" y="394">accepted, verification-backed</text>
+          <text id="obs-cost" x="690" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">unknown</text>
+          <text class="t-xs" x="690" y="394">no model call is not a priced call</text>
 
           <rect x="946" y="330" width="228" height="76" rx="10"
                 fill="color-mix(in oklab, var(--ok) 9%, var(--panel))"
                 stroke="color-mix(in oklab, var(--ok) 50%, var(--line))"/>
-          <text class="t-xs" x="966" y="352">VERIFIED SHIPPING</text>
-          <text x="966" y="378" font-size="20" font-weight="700" fill="var(--ok)" font-family="var(--mono)">Proven</text>
-          <text class="t-xs" x="966" y="394">break a causal link and this reads Unproven</text>
+          <text class="t-xs" x="966" y="352">VERIFIED + OBSERVED</text>
+          <text id="obs-proof" x="966" y="378" font-size="20" font-weight="700" fill="var(--ok)" font-family="var(--mono)">run lifecycle</text>
+          <text class="t-xs" x="966" y="394">real test and ingestion lineage required</text>
         </g>
 
         <text class="t-xs" x="18" y="440">A number that cannot be measured is reported as <tspan fill="var(--warn)">unknown</tspan> — never as zero, and never as $0.</text>
@@ -597,7 +597,7 @@
 
 <script>
   // Highlight the section in view and keep the ↓ pager pointing at the next one.
-  const ids = ["problem", "solution", "effect", "uses"];
+  const ids = ["problem", "solution", "effect", "uses", "observability"];
   const links = new Map(ids.map((id) => [id, document.querySelector('nav.deck a[href="#' + id + '"]')]));
   const next = document.getElementById("next");
   const io = new IntersectionObserver((entries) => {
@@ -613,6 +613,32 @@
     }
   }, { threshold: 0.55 });
   for (const id of ids) io.observe(document.getElementById(id));
+
+  // When served by `pnpm cockpit`, the observability slide reads the same
+  // captured run as the cockpit. The standalone deck intentionally keeps
+  // unknown placeholders instead of embedding a reference run that can drift.
+  const duration = (seconds) => {
+    if (!Number.isFinite(seconds)) return "unknown";
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+  };
+  fetch("/api/run")
+    .then((response) => {
+      if (!response.ok) throw new Error("run unavailable");
+      return response.json();
+    })
+    .then((run) => {
+      const elapsed = run.summary.elapsedSeconds;
+      const captured = run.steps.reduce((total, step) => total + step.durationSeconds, 0);
+      const capturedPct = elapsed > 0 ? Math.round((captured / elapsed) * 100) : 0;
+      document.getElementById("obs-elapsed").textContent = duration(elapsed);
+      document.getElementById("obs-work-wait").textContent = `${capturedPct} / ${100 - capturedPct}`;
+      document.getElementById("obs-cost").textContent = run.summary.totalCostUsd === null
+        ? "unknown"
+        : `$${run.summary.totalCostUsd.toFixed(2)}`;
+      document.getElementById("obs-proof").textContent = run.summary.verifiedShipping ? "Proven" : "Unproven";
+    })
+    .catch(() => {});
 </script>
 </body>
 </html>

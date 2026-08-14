@@ -16,7 +16,9 @@ const pathExists = (links, source, target) => {
 };
 
 export function buildCockpitModel(trace) {
-  if (trace.mode !== "simulated") throw new Error("demo trace must declare simulated mode");
+  if (!["simulated", "measured"].includes(trace.mode)) {
+    throw new Error("demo trace must declare simulated or measured mode");
+  }
   if (!Array.isArray(trace.steps) || trace.steps.length === 0) throw new Error("demo trace requires steps");
   const ids = new Set();
   let cursor = Date.parse(trace.startedAt);
@@ -31,21 +33,24 @@ export function buildCockpitModel(trace) {
       throw new Error(`${step.id} has an invalid active/wait duration`);
     }
     const priced = Number.isFinite(step.modelCostUsd) && Number.isFinite(step.infraCostUsd);
-    const startedAt = new Date(cursor).toISOString();
+    const startedAt = step.startedAt ?? new Date(cursor).toISOString();
     cursor += step.durationSeconds * 1000;
     const waitSeconds = step.durationSeconds - step.activeSeconds;
     return {
       ...step,
       order: index + 1,
       startedAt,
-      endedAt: new Date(cursor).toISOString(),
+      endedAt: step.endedAt ?? new Date(cursor).toISOString(),
       waitSeconds,
       tokens: { ...step.tokens, total: step.tokens.input + step.tokens.output },
       costUsd: priced ? round(step.modelCostUsd + step.infraCostUsd) : null,
       costProvenance: priced ? trace.pricing.provenance : "unknown",
     };
   });
-  const elapsedSeconds = sum(steps, (step) => step.durationSeconds);
+  const capturedSeconds = sum(steps, (step) => step.durationSeconds);
+  const elapsedSeconds = trace.mode === "measured" && Number.isFinite(trace.summaryEvidence?.lifecycleExecutionMs)
+    ? Math.max(capturedSeconds, trace.summaryEvidence.lifecycleExecutionMs / 1000)
+    : capturedSeconds;
   const activeSeconds = sum(steps, (step) => step.activeSeconds);
   const tokenInput = sum(steps, (step) => step.tokens.input);
   const tokenOutput = sum(steps, (step) => step.tokens.output);
@@ -53,7 +58,8 @@ export function buildCockpitModel(trace) {
   const modelCostUsd = allPriced ? round(sum(steps, (step) => step.modelCostUsd)) : null;
   const infraCostUsd = allPriced ? round(sum(steps, (step) => step.infraCostUsd)) : null;
   const totalCostUsd = allPriced ? round(modelCostUsd + infraCostUsd) : null;
-  const stages = ["understand", "plan", "implement", "verify", "release"].map((name) => {
+  const stageOrder = trace.stageOrder ?? ["understand", "plan", "implement", "verify", "release"];
+  const stages = stageOrder.map((name) => {
     const members = steps.filter((step) => step.stage === name);
     return {
       name,
@@ -69,9 +75,11 @@ export function buildCockpitModel(trace) {
     runId: trace.runId,
     correlationId: trace.correlationId,
     startedAt: trace.startedAt,
-    endedAt: new Date(cursor).toISOString(),
+    endedAt: trace.endedAt ?? new Date(cursor).toISOString(),
     task: trace.task,
     pricing: trace.pricing,
+    provenance: trace.provenance ?? null,
+    summaryEvidence: trace.summaryEvidence ?? null,
     summary: {
       elapsedSeconds,
       activeSeconds,
@@ -85,9 +93,13 @@ export function buildCockpitModel(trace) {
       modelCostUsd,
       infraCostUsd,
       totalCostUsd,
-      verifiedShipping: steps.some((step) => step.id === "bamboo" && step.status === "succeeded")
-        && steps.some((step) => step.id === "prd-release" && step.status === "succeeded")
-        && pathExists(trace.lineage, "bamboo", "prd-release"),
+      verifiedShipping: trace.mode === "measured"
+        ? steps.some((step) => step.id === "verify-change" && step.status === "succeeded")
+          && steps.some((step) => step.id === "observability-ingest" && step.status === "succeeded")
+          && pathExists(trace.lineage, "verify-change", "observability-ingest")
+        : steps.some((step) => step.id === "bamboo" && step.status === "succeeded")
+          && steps.some((step) => step.id === "prd-release" && step.status === "succeeded")
+          && pathExists(trace.lineage, "bamboo", "prd-release"),
       attributionCoverage: trace.lineage.length === steps.length - 1 ? 1 : round(trace.lineage.length / (steps.length - 1)),
     },
     stages,
@@ -97,6 +109,12 @@ export function buildCockpitModel(trace) {
 }
 
 export async function cockpitModel(root) {
-  const trace = JSON.parse(await readFile(resolve(root, "scenario/delivery-lifecycle.json"), "utf8"));
+  let path = resolve(root, ".demo/lifecycle/run.json");
+  try {
+    await readFile(path);
+  } catch {
+    path = resolve(root, "scenario/delivery-lifecycle.json");
+  }
+  const trace = JSON.parse(await readFile(path, "utf8"));
   return buildCockpitModel(trace);
 }
