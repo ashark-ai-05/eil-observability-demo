@@ -17,7 +17,9 @@ const server = createServer(async (request, response) => {
     // The platform map and observability plane are served from their own
     // directory, on the same exact-match allowlist as the cockpit assets --
     // a prefix or extension test here would be a path-traversal hole.
-    const platform = request.url.match(/^\/platform\/(system-map\.html|observability-plane\.html)$/);
+    const platform = request.url.match(
+      /^\/platform\/(system-map\.html|observability-plane\.html|eil-platform\.html)$/,
+    );
     if (platform) {
       response.writeHead(200, { "content-type": types[".html"] });
       response.end(await readFile(resolve(root, "platform", platform[1])));
