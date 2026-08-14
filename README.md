@@ -522,10 +522,10 @@ The platform views are served beside the cockpit:
 `platform/eil-platform.html` is the standalone presentation source. Copy it
 where your presentation workflow expects it, for example
 `cp platform/eil-platform.html ~/Documents/eil-platform.html`. When served by
-`pnpm cockpit`, its observability slide reads `/api/run`, so the figures come
-from the same measured record as the cockpit. Opened directly as a file, it
-shows unknown placeholders instead of retaining stale figures from an older
-run. The companion observability plane uses the same visual language and spells
+`pnpm cockpit`, its observability slide reads `/api/run`, so run time, work
+split, tokens and proof come from the same measured record as the cockpit.
+Opened directly as a file, it tells the presenter to start the cockpit instead
+of showing unexplained placeholder values. The companion observability plane uses the same visual language and spells
 out capture, measurement, attribution, presentation and the feedback loop into
 ingest/index.
 

@@ -82,10 +82,12 @@ test("production outcome is unproven without causal verification lineage", async
   assert.equal(model.summary.verifiedShipping, false);
 });
 
-test("platform observability slide reads the cockpit run instead of embedding reference metrics", async () => {
+test("platform observability slide reads token-first cockpit metrics without unexplained placeholders", async () => {
   const html = await readFile(resolve(root, "platform/eil-platform.html"), "utf8");
   assert.match(html, /fetch\("\/api\/run"\)/);
   assert.match(html, /id="obs-elapsed"/);
-  assert.match(html, /id="obs-cost"[^>]*>unknown</);
+  assert.match(html, /id="obs-tokens"[^>]*>Live usage</);
+  assert.match(html, /run\.summary\.tokenTotal/);
+  assert.doesNotMatch(html, />unknown</);
   assert.doesNotMatch(html, /52m 29s|\$0\.54|32 \/ 68/);
 });

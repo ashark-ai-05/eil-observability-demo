@@ -505,7 +505,7 @@
     <h2>Observability<span class="sub">every answer leaves a receipt</span></h2>
     <div class="scroll">
       <svg class="flow" viewBox="0 0 1200 470" fill="none" role="img"
-           aria-label="A measured delivery run across five stages, each emitting a canonical event into one ledger. The ledger yields run time, captured and unattributed time, cost provenance, and whether the verified change was observed. Capture is metadata-only: a digest of the query is stored, never the query.">
+           aria-label="A measured delivery run across five stages, each emitting a canonical event into one ledger. The ledger yields run time, work versus other time, token usage, and whether the verified change was observed. Capture is metadata-only: a digest of the query is stored, never the query.">
 
         <!-- the delivery run, left to right -->
         <g>
@@ -558,31 +558,31 @@
         <g>
           <rect class="st" x="118" y="330" width="228" height="76" rx="10"/>
           <text class="t-xs" x="138" y="352">RUN TIME</text>
-          <text id="obs-elapsed" x="138" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">run lifecycle</text>
-          <text class="t-xs" x="138" y="394">measured during this execution</text>
+          <text id="obs-elapsed" x="138" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">Start cockpit</text>
+          <text class="t-xs" x="138" y="394">measured wall-clock time</text>
 
           <rect x="394" y="330" width="228" height="76" rx="10"
                 fill="color-mix(in oklab, var(--vec) 9%, var(--panel))"
                 stroke="color-mix(in oklab, var(--vec) 50%, var(--line))"/>
-          <text class="t-xs" x="414" y="352">CAPTURED / UNATTRIBUTED</text>
-          <text id="obs-work-wait" x="414" y="378" font-size="20" font-weight="700" fill="var(--vec)" font-family="var(--mono)">unknown</text>
-          <text class="t-xs" x="414" y="394">derived from measured spans</text>
+          <text class="t-xs" x="414" y="352">WORK / OTHER TIME</text>
+          <text id="obs-work-wait" x="414" y="378" font-size="20" font-weight="700" fill="var(--vec)" font-family="var(--mono)">Live split</text>
+          <text class="t-xs" x="414" y="394">measured steps vs run overhead</text>
 
           <rect class="st" x="670" y="330" width="228" height="76" rx="10"/>
-          <text class="t-xs" x="690" y="352">COST PER OUTCOME</text>
-          <text id="obs-cost" x="690" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">unknown</text>
-          <text class="t-xs" x="690" y="394">no model call is not a priced call</text>
+          <text class="t-xs" x="690" y="352">TOKENS PER OUTCOME</text>
+          <text id="obs-tokens" x="690" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">Live usage</text>
+          <text id="obs-token-note" class="t-xs" x="690" y="394">input + output tokens</text>
 
           <rect x="946" y="330" width="228" height="76" rx="10"
                 fill="color-mix(in oklab, var(--ok) 9%, var(--panel))"
                 stroke="color-mix(in oklab, var(--ok) 50%, var(--line))"/>
           <text class="t-xs" x="966" y="352">VERIFIED + OBSERVED</text>
-          <text id="obs-proof" x="966" y="378" font-size="20" font-weight="700" fill="var(--ok)" font-family="var(--mono)">run lifecycle</text>
-          <text class="t-xs" x="966" y="394">real test and ingestion lineage required</text>
+          <text id="obs-proof" x="966" y="378" font-size="20" font-weight="700" fill="var(--ok)" font-family="var(--mono)">Live proof</text>
+          <text class="t-xs" x="966" y="394">test + receipt must be linked</text>
         </g>
 
-        <text class="t-xs" x="18" y="440">A number that cannot be measured is reported as <tspan fill="var(--warn)">unknown</tspan> — never as zero, and never as $0.</text>
-        <text class="t-xs" x="1182" y="440" text-anchor="end">inference is forbidden from claiming certainty</text>
+        <text id="obs-run-note" class="t-xs" x="18" y="440">Run lifecycle, then open this page through the cockpit to load the measured result.</text>
+        <text class="t-xs" x="1182" y="440" text-anchor="end">every result links to captured evidence</text>
       </svg>
     </div>
    </div>
@@ -615,10 +615,10 @@
   for (const id of ids) io.observe(document.getElementById(id));
 
   // When served by `pnpm cockpit`, the observability slide reads the same
-  // captured run as the cockpit. The standalone deck intentionally keeps
-  // unknown placeholders instead of embedding a reference run that can drift.
+  // captured run as the cockpit. Standalone mode gives an actionable prompt
+  // instead of displaying unexplained placeholder values.
   const duration = (seconds) => {
-    if (!Number.isFinite(seconds)) return "unknown";
+    if (!Number.isFinite(seconds)) return "—";
     if (seconds < 60) return `${seconds.toFixed(1)}s`;
     return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
   };
@@ -633,10 +633,10 @@
       const capturedPct = elapsed > 0 ? Math.round((captured / elapsed) * 100) : 0;
       document.getElementById("obs-elapsed").textContent = duration(elapsed);
       document.getElementById("obs-work-wait").textContent = `${capturedPct} / ${100 - capturedPct}`;
-      document.getElementById("obs-cost").textContent = run.summary.totalCostUsd === null
-        ? "unknown"
-        : `$${run.summary.totalCostUsd.toFixed(2)}`;
+      document.getElementById("obs-tokens").textContent = run.summary.tokenTotal.toLocaleString();
+      document.getElementById("obs-token-note").textContent = `${run.summary.modelCalls} model call${run.summary.modelCalls === 1 ? "" : "s"} · input + output`;
       document.getElementById("obs-proof").textContent = run.summary.verifiedShipping ? "Proven" : "Unproven";
+      document.getElementById("obs-run-note").textContent = `${run.steps.length} measured steps · ${run.summary.toolCalls} tool calls · ${run.summary.retries} retries · one evidence-linked outcome`;
     })
     .catch(() => {});
 </script>
