@@ -26,6 +26,7 @@ test("measured trace keeps unknown cost and proves verified observed lineage", a
     mode: "measured",
     stageOrder: ["verify", "observe"],
     pricing: { currency: "USD", version: null, provenance: "unknown_not_metered" },
+    summaryEvidence: { lifecycleExecutionMs: 2000 },
     steps: [
       { ...base.steps[0], id: "verify-change", stage: "verify", modelCostUsd: null, infraCostUsd: null, metrics: { testsPassed: 1 } },
       { ...base.steps[1], id: "observability-ingest", stage: "observe", modelCostUsd: null, infraCostUsd: null, metrics: { persistedReceipts: 1 } },
@@ -38,12 +39,25 @@ test("measured trace keeps unknown cost and proves verified observed lineage", a
   assert.equal(model.summary.verifiedShipping, true);
   assert.equal(model.summary.attributionCoverage, 1);
   assert.equal(model.steps[1].metrics.persistedReceipts, 1);
+  assert.equal(model.summary.projectedElapsedSeconds, model.summary.elapsedSeconds * 420);
+  assert.equal(model.summary.modelCalls, 0);
+  assert.equal(model.summary.usageProvenance, "measured");
 });
 
 test("missing evidence artifact breaks trace reconstruction", async () => {
   const trace = await fixture();
   delete trace.steps[3].artifact;
   assert.throws(() => buildCockpitModel(trace), /missing a resolvable artifact/);
+});
+
+test("one simulated LLM call downgrades aggregate usage provenance", async () => {
+  const trace = await fixture();
+  trace.steps[0].tokens = { input: 2400, output: 600, cached: 900, provenance: "simulated_provider_usage" };
+  trace.steps[0].metrics = { modelCalls: 1 };
+  const model = buildCockpitModel(trace);
+  assert.equal(model.summary.modelCalls, 1);
+  assert.equal(model.summary.tokenTotal, 3000 + trace.steps.slice(1).reduce((total, step) => total + step.tokens.input + step.tokens.output, 0));
+  assert.equal(model.summary.usageProvenance, "simulated");
 });
 
 test("missing terminal measurement never becomes zero duration", async () => {

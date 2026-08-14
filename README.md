@@ -293,9 +293,38 @@ real and measured:
 
 Each span captures its actual wall time, operation counts, result counts, status
 and artifact. The run writes `.demo/lifecycle/run.json`; `pnpm cockpit` reads
-that file automatically. Tokens are a measured zero because this credential-free
-run makes no model call. Cost is `unknown`, never `$0`, because nothing returns a
-billing record. Missing paths, a drifted pin or a failed command stop the run.
+that file automatically. The presenter prints every span as **input → operation
+→ output → artifact → metrics**, then renders the same trace in the cockpit.
+
+One deterministic **simulated LLM call** drafts the acceptance criteria so the
+report includes a visible model call, 3,000 tokens (2,400 input / 600 output,
+900 cached), and a `$0.012` estimate from `demo-pricebook-2026-08`. Its receipt
+is `.demo/run/llm-call.json`; both usage and price are labelled simulated and
+estimated, never provider-reported. Every other operation remains real.
+
+To replace that fixture with an actual GitHub Copilot CLI call:
+
+```bash
+EIL_REPO=../enterprise-intelligence-layer \
+OBSERVABILITY_REPO=../enterprise-ai-observability \
+pnpm lifecycle -- --llm=copilot
+```
+
+This path is explicit because it can consume paid GitHub AI credits. It runs
+Copilot programmatically with writing, shell, URL and built-in MCP tools denied.
+It enables Copilot's file OpenTelemetry exporter and reads the provider-emitted
+`gen_ai.usage.*` token fields and `github.copilot.cost`; prompt/response content
+capture stays disabled. If Copilot produces no chat span, the lifecycle fails
+instead of displaying zero usage. See the official [Copilot programmatic CLI
+guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/automate-with-actions)
+and [CLI OpenTelemetry reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#opentelemetry-monitoring).
+
+The cockpit shows two clocks separately: actual measured wall time and an
+opt-in enterprise-scale scenario projection. `pnpm journey -- --scale` applies
+the versioned 420× demo basis; every projected duration is prefixed `~`, and the
+unscaled milliseconds remain available without the flag. Simulated traces are
+never scaled again.
+Missing paths, a drifted pin or a failed command stop the run.
 
 GitHub Actions do not run in Stash. Reproduce `pnpm check`, both product builds,
 and `pnpm test:integration` in Bamboo when turning this manual test into a
@@ -377,6 +406,8 @@ failing regression → code change → passing regression → commit → canonic
 receipt → real Observability persistence and idempotent replay. It displays the
 actual durations, document/chunk/result counts, tool/process calls, test exit
 codes, commit SHA, gates and receipt facts captured during that run.
+It also shows the simulated LLM usage/cost and the separately labelled 180×
+enterprise-scale projection. The measured figures remain available beside it.
 
 The provenance boundary is narrow and visible: Confluence, Jira and code
 **content** are deterministic fixtures; the storage, ingestion, normalization,

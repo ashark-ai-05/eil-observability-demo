@@ -21,6 +21,8 @@ const measured = data.mode === "measured";
 const waterfallTotal = measured ? data.summary.activeSeconds : total;
 const longest = [...data.steps].sort((a, b) => b.durationSeconds - a.durationSeconds)[0];
 const badge = measured ? "MEASURED RUN" : "SIMULATED DATA";
+const scale = data.summary.projectionBasis?.multiplier ?? null;
+const actualLlm = data.summary.usageProvenance === "measured";
 const outcomeLabel = measured ? "Verified and observed" : `Released to ${data.task.environment}`;
 const axis = [0, .25, .5, .75, 1].map((fraction) => measured ? `+${duration(waterfallTotal * fraction)}` : time(new Date(Date.parse(data.startedAt) + total * fraction * 1000)));
 const flow = data.steps.map((step) => `<div class="flow-node" data-stage="${step.stage}"><i>${step.order}</i><span><small>${step.system}</small><strong>${step.action}</strong></span></div>`).join("");
@@ -52,6 +54,7 @@ const timeline = data.steps.map((step) => {
         <div class="trace-title"><span class="system">${step.system}</span><span class="clock">${time(step.startedAt)} → ${time(step.endedAt)}</span></div>
         <h3>${step.action}</h3>
         <p>${step.detail}</p>
+        <div class="trace-io"><span><small>Input</small><code>${JSON.stringify(step.input ?? {})}</code></span><span><small>Output</small><code>${JSON.stringify(step.output ?? step.metrics ?? {})}</code></span></div>
         <div class="duration-bar"><i class="active" style="width:${100 - waitShare}%"></i><i class="wait" style="width:${waitShare}%"></i></div>
         <div class="trace-facts">
           <span><b>${duration(step.durationSeconds)}</b> elapsed</span>
@@ -84,10 +87,10 @@ document.querySelector("#app").innerHTML = `
   <section class="notice"><b>${measured ? "Provenance" : "Simulation"}</b><span>${measured ? "Only Confluence, Jira and code content are synthetic. Every operation, duration, count, test, commit and persisted receipt below was captured from this run." : "This journey demonstrates the intended experience. Jira, Confluence, Bamboo and deployment events below are representative fixtures, not live corporate telemetry."}</span><code>${data.runId}</code></section>
   <section class="flow"><div class="flow-line"></div>${flow}</section>
   <section class="kpis">
-    <article><span>${measured ? "Execution time" : "Lead time"}</span><strong>${duration(data.summary.elapsedSeconds)}</strong><small>${measured ? `${data.steps.length} measured spans` : "intake → production"}</small></article>
+    <article><span>${measured ? "Execution time" : "Lead time"}</span><strong>${duration(data.summary.elapsedSeconds)}</strong><small>${scale ? `projected ~${duration(data.summary.projectedElapsedSeconds)} at ${scale}×` : "intake → production"}</small></article>
     <article><span>Measured work</span><strong>${duration(data.summary.activeSeconds)}</strong><small>${pct(data.summary.activeSeconds / data.summary.elapsedSeconds)} of elapsed</small></article>
     <article><span>Unattributed time</span><strong>${duration(data.summary.waitSeconds)}</strong><small>${measured ? "derived, never fabricated" : `${pct(data.summary.waitSeconds / data.summary.elapsedSeconds)} queue + human + compute`}</small></article>
-    <article><span>Cost</span><strong>${money(data.summary.totalCostUsd)}</strong><small>${measured ? "not metered; never shown as $0" : data.pricing.version}</small></article>
+    <article><span>Cost</span><strong>${money(data.summary.totalCostUsd)}</strong><small>${actualLlm ? "provider-reported via Copilot OTel" : "simulated LLM estimate"}</small></article>
     <article><span>${measured ? "Verified outcome" : "Verified shipping"}</span><strong class="good">${data.summary.verifiedShipping ? "Proven" : "Unproven"}</strong><small>${pct(data.summary.attributionCoverage)} lineage coverage</small></article>
   </section>
   <section class="panel journey-panel">
@@ -95,7 +98,7 @@ document.querySelector("#app").innerHTML = `
     <div class="stages">${stageCards}</div>
   </section>
   <section class="insights">
-    <article class="panel"><div class="panel-title compact"><div><span>02 · VALUE & COST</span><h2>What the outcome consumed</h2></div><strong class="big-number">${money(data.summary.totalCostUsd)}</strong></div>${costRows}<div class="mini-grid"><div><small>Model calls</small><strong>${data.summary.tokenTotal === 0 ? "0" : number(data.summary.tokenTotal)}</strong><span>${measured ? "no model used" : `${number(data.summary.tokenCached)} cached`}</span></div><div><small>Tool/process calls</small><strong>${data.summary.toolCalls}</strong><span>${data.summary.retries} retries</span></div><div><small>Verified outcomes</small><strong>1</strong><span>${measured ? "commit + receipt" : `${money(data.summary.totalCostUsd)} / outcome`}</span></div></div><p class="provenance"><b>${measured ? "UNKNOWN COST" : "ESTIMATED"}</b> ${measured ? "No billed provider call occurred; unavailable cost is not converted to $0." : `Provider usage × ${data.pricing.version}; not a billing record.`}</p></article>
+    <article class="panel"><div class="panel-title compact"><div><span>02 · VALUE & COST</span><h2>What the outcome consumed</h2></div><strong class="big-number">${money(data.summary.totalCostUsd)}</strong></div>${costRows}<div class="mini-grid"><div><small>Model calls</small><strong>${data.summary.modelCalls}</strong><span>${number(data.summary.tokenTotal)} tokens · ${number(data.summary.tokenCached)} cached</span></div><div><small>Tool/process calls</small><strong>${data.summary.toolCalls}</strong><span>${data.summary.retries} retries</span></div><div><small>Verified outcomes</small><strong>1</strong><span>commit + receipt</span></div></div><p class="provenance"><b>${actualLlm ? "PROVIDER-REPORTED · COPILOT OTEL" : "ESTIMATED · SIMULATED LLM"}</b> ${actualLlm ? "Token and cost fields came from metadata-only OpenTelemetry spans." : `Usage fixture × ${data.pricing.version}; not a provider bill.`} All non-LLM operations are measured.</p></article>
     <article class="panel"><div class="panel-title compact"><div><span>03 · BOTTLENECK</span><h2>${measured ? "Where this run spent time" : "Most time was not reasoning"}</h2></div><strong class="big-number">${duration(longest.durationSeconds)}</strong></div><div class="split"><i style="width:${data.summary.activeSeconds / data.summary.elapsedSeconds * 100}%"></i><b></b></div><div class="split-label"><span><i class="legend-active"></i>Measured · ${duration(data.summary.activeSeconds)}</span><span><i class="legend-wait"></i>Unattributed · ${duration(data.summary.waitSeconds)}</span></div><div class="callout"><i>!</i><span><strong>Longest span: ${longest.action}</strong><small>${duration(longest.durationSeconds)} measured in ${longest.system}.</small></span></div></article>
   </section>
   <section class="panel waterfall-panel">
@@ -110,7 +113,7 @@ document.querySelector("#app").innerHTML = `
   </section>
   <section class="measured-output" id="measured-output">
     <div><span>06 · MEASURED OUTPUT</span><h2>${measured ? "One verified, observed change" : "One accepted production outcome"}</h2><p>Final roll-up from the same ${data.steps.length} spans above. No separate spreadsheet and no authored metrics.</p></div>
-    <div class="output-grid"><article><small>Run wall time</small><strong>${duration(data.summary.elapsedSeconds)}</strong></article><article><small>Spans / unattributed</small><strong>${duration(data.summary.activeSeconds)} <i>/</i> ${duration(data.summary.waitSeconds)}</strong></article><article><small>Model calls</small><strong>${number(data.summary.tokenTotal)}</strong></article><article><small>Tools / retries</small><strong>${data.summary.toolCalls} <i>/</i> ${data.summary.retries}</strong></article><article><small>Total cost</small><strong>${money(data.summary.totalCostUsd)}</strong></article><article><small>Outcome proof</small><strong class="good">${measured ? "Verified" : "Shipped"} · ${pct(data.summary.attributionCoverage)}</strong></article></div>
-    <footer><span>${measured ? "COST UNKNOWN · NO MODEL CALL" : `${data.pricing.version} · ESTIMATED COST`}</span><span>Every value resolves to the ${measured ? "executed run" : "simulated trace"}</span></footer>
+    <div class="output-grid"><article><small>Run wall time</small><strong>${duration(data.summary.elapsedSeconds)}</strong></article><article><small>Projected scale</small><strong>${scale ? `~${duration(data.summary.projectedElapsedSeconds)}` : "unknown"}</strong></article><article><small>Model calls / tokens</small><strong>${data.summary.modelCalls} <i>/</i> ${number(data.summary.tokenTotal)}</strong></article><article><small>Tools / retries</small><strong>${data.summary.toolCalls} <i>/</i> ${data.summary.retries}</strong></article><article><small>Estimated cost</small><strong>${money(data.summary.totalCostUsd)}</strong></article><article><small>Outcome proof</small><strong class="good">${measured ? "Verified" : "Shipped"} · ${pct(data.summary.attributionCoverage)}</strong></article></div>
+    <footer><span>${data.pricing.version} · ${actualLlm ? "PROVIDER-REPORTED LLM" : "SIMULATED LLM ESTIMATE"}</span><span>Measured time and projected scale remain separate</span></footer>
   </section>
   <footer><span>Schema v${data.schemaVersion} · ${data.pricing.provenance} cost · ${data.mode}</span><span>${time(data.startedAt)} → ${time(data.endedAt)} UTC</span></footer>`;
