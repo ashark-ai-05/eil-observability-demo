@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cockpitModel } from "./cockpit-model.mjs";
 import { ACTIVE, WAIT, waterfallRow } from "./journey-layout.mjs";
+import { DEMO_SCALE_BASIS, describeBasis, project, scaleApplies } from "./provenance.mjs";
 
 const argv = process.argv.slice(2);
 const has = (flag) => argv.includes(`--${flag}`);
@@ -30,11 +31,28 @@ const WIDTH = 78;
 const RULE = "─".repeat(WIDTH);
 const CHART = 44;
 
-const clock = (seconds) => {
+let SCALED = false;   // set once the trace mode is known; see scaleApplies()
+
+const format = (seconds) => {
+  if (seconds === null) return "unknown";
   if (seconds < 1) return `${Math.round(seconds * 1000)}ms`;
-  const m = Math.floor(seconds / 60);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
   const s = Math.round(seconds % 60);
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
   return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
+};
+
+/**
+ * With --scale, durations are projected to enterprise scale by a stated
+ * multiplier. A projected duration is marked with a leading `~` wherever it
+ * appears, so it can never be read off the page as a measurement. Without the
+ * flag nothing is scaled and the real millisecond figures stand.
+ */
+const clock = (seconds) => {
+  if (!SCALED) return format(seconds);
+  const projected = project(seconds, DEMO_SCALE_BASIS);
+  return projected.seconds === null ? "unknown" : `~${format(projected.seconds)}`;
 };
 const usd = (n) => n === null ? "unknown" : `$${n.toFixed(2)}`;
 const pct = (n) => `${Math.round(n * 100)}%`;
@@ -42,6 +60,7 @@ const pct = (n) => `${Math.round(n * 100)}%`;
 const model = await cockpitModel(resolve(fileURLToPath(new URL("..", import.meta.url))));
 const { summary: sum, task, steps, stages, pricing } = model;
 const measured = model.mode === "measured";
+SCALED = has("scale") && scaleApplies(model.mode);
 
 console.log(`\n${c.cyan(c.bold("DELIVERY INTELLIGENCE"))}  ${c.dim(measured ? "fixture intake to verified receipt" : "one task, intake to production")}`);
 console.log(c.dim(`${task.id} · ${task.title}`));
@@ -49,6 +68,15 @@ console.log(c.dim(`${task.service} · ${task.repository} · correlation ${model.
 console.log(`\n${measured ? okChip(" MEASURED ") : warnChip(" SIMULATED ")} ${c.dim(measured
   ? "Only Confluence, Jira and code content are synthetic; operations and metrics executed."
   : "Jira, Confluence, Bamboo and deployment steps are fixtures, not live corporate telemetry.")}`);
+if (has("scale") && !scaleApplies(model.mode)) {
+  console.log(`${warnChip(" NOT SCALED ")} ${c.amber("--scale ignored: this trace is simulated and its durations are already realistic.")}`);
+  console.log(`             ${c.dim("scaling them would multiply a 52-minute lead time into hundreds of hours.")}`);
+}
+if (SCALED) {
+  console.log(`${warnChip(" PROJECTED ")} ${c.amber(describeBasis(DEMO_SCALE_BASIS))}`);
+  console.log(`             ${c.dim("every duration below is marked ~ and is a projection, not a measurement.")}`);
+  console.log(`             ${c.dim("run without --scale to see the measured milliseconds.")}`);
+}
 
 // ── The four numbers an executive reads ─────────────────────────────────────
 console.log(`\n${c.grey(RULE)}`);
