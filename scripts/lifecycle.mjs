@@ -4,7 +4,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
-import { readCopilotUsage } from "./copilot-usage.mjs";
+import { summariseCopilotOtel } from "./copilot-otel.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const outputDir = resolve(root, ".demo/lifecycle");
@@ -223,10 +223,19 @@ if (llmMode === "copilot") {
     cwd: root,
     env: { ...process.env, COPILOT_OTEL_ENABLED: "true", COPILOT_OTEL_EXPORTER_TYPE: "file", COPILOT_OTEL_FILE_EXPORTER_PATH: otelPath, OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "false" },
   });
-  const usage = await readCopilotUsage(otelPath);
-  if (usage.modelCalls === 0) throw new Error("Copilot completed without an exported chat span; token and cost metrics cannot be claimed");
+  const copilot = summariseCopilotOtel(await readFile(otelPath, "utf8"));
+  if (copilot.modelCalls === 0 || copilot.tokens.provenance !== "measured") {
+    throw new Error("Copilot completed without measured chat-token telemetry; usage cannot be claimed");
+  }
+  const usage = {
+    modelCalls: copilot.modelCalls, inputTokens: copilot.tokens.input,
+    outputTokens: copilot.tokens.output, cachedTokens: copilot.tokens.cachedInput,
+    reasoningOutputTokens: copilot.tokens.reasoningOutput, costUsd: copilot.cost.usd,
+    reportedCostByTool: copilot.cost.reportedByTool, costReason: copilot.cost.reason,
+    provenance: "provider_reported_otel",
+  };
   llmDurationMs = call.durationMs;
-  llmReceipt = { mode: "copilot", model: usage.models, purpose: "draft acceptance criteria from governed evidence", inputEvidence: ["jira:PAY-142", "confluence:payment-retry-runbook"], output: criteriaDraft, usage, rawResponse: call.stdout, otelArtifact: ".demo/run/copilot-otel.jsonl" };
+  llmReceipt = { mode: "copilot", model: copilot.model, purpose: "draft acceptance criteria from governed evidence", inputEvidence: ["jira:PAY-142", "confluence:payment-retry-runbook"], output: criteriaDraft, usage, rawResponse: call.stdout, otelArtifact: ".demo/run/copilot-otel.jsonl" };
 } else {
   llmReceipt = {
     mode: "simulated", model: "enterprise-demo-model", purpose: "draft acceptance criteria from governed evidence",
@@ -338,7 +347,7 @@ const trace = {
     outcome: "verified_and_observed",
     environment: "LOCAL",
   },
-  pricing: { currency: "USD", version: llmMode === "copilot" ? "github-copilot-otel" : "demo-pricebook-2026-08", provenance: llmMode === "copilot" ? "provider_reported" : "estimated_simulated_llm" },
+  pricing: { currency: "USD", version: llmMode === "copilot" ? "github-copilot-otel" : "demo-pricebook-2026-08", provenance: llmMode === "copilot" ? "unknown_copilot_credits_omitted" : "estimated_simulated_llm" },
   provenance: {
     simulated: ["Confluence content", "Jira content", "code corpus"],
     measured: "all ingestion, indexing, retrieval, criteria, file, test, Git, telemetry and persistence operations",
@@ -367,7 +376,7 @@ await observedCommand({
 
 console.log(`\n${sgr(90, rule)}\n${sgr(32, sgr(1, "MEASURED OUTPUT WRITTEN"))}`);
 console.log(`  ${steps.length} executed spans · ${trace.summaryEvidence.lifecycleExecutionMs.toFixed(1)}ms wall time`);
-console.log(`  ${steps.reduce((total, step) => total + step.toolCalls, 0)} tool/process calls · ${llmUsage.modelCalls} ${llmMode} model call(s) · ${llmUsage.inputTokens + llmUsage.outputTokens} tokens · $${llmUsage.costUsd} ${llmMode === "copilot" ? "provider-reported" : "estimated"}`);
+console.log(`  ${steps.reduce((total, step) => total + step.toolCalls, 0)} tool/process calls · ${llmUsage.modelCalls} ${llmMode} model call(s) · ${llmUsage.inputTokens + llmUsage.outputTokens} tokens · ${llmUsage.costUsd === null ? "cost unknown" : `$${llmUsage.costUsd} estimated`}`);
 console.log("  enterprise-scale projection shown at 420× · every projected duration is prefixed ~");
 console.log(`  commit ${evidence.artifactCommit.slice(0, 8)} · gates ${trace.summaryEvidence.acceptanceGatesPassed}/${trace.summaryEvidence.acceptanceGatesTotal}`);
 console.log(`  cockpit source ${tracePath}`);

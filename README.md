@@ -312,10 +312,13 @@ pnpm lifecycle -- --llm=copilot
 
 This path is explicit because it can consume paid GitHub AI credits. It runs
 Copilot programmatically with writing, shell, URL and built-in MCP tools denied.
-It enables Copilot's file OpenTelemetry exporter and reads the provider-emitted
-`gen_ai.usage.*` token fields and `github.copilot.cost`; prompt/response content
-capture stays disabled. If Copilot produces no chat span, the lifecycle fails
-instead of displaying zero usage. See the official [Copilot programmatic CLI
+It enables Copilot's file OpenTelemetry exporter and reads provider-emitted
+`gen_ai.usage.*` token fields; prompt/response content capture stays disabled.
+A live probe found that `github.copilot.cost` reports `0.0` even when the CLI
+footer charges AI credits, and the credit amount is absent from OTel. The demo
+therefore keeps that zero as discrepancy evidence but reports cost as `unknown`.
+If Copilot produces no chat/token span, the lifecycle fails instead of
+displaying zero usage. See the official [Copilot programmatic CLI
 guide](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/automate-with-actions)
 and [CLI OpenTelemetry reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#opentelemetry-monitoring).
 
