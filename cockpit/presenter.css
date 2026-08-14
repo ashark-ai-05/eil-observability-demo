@@ -35,9 +35,14 @@
 .flow-node[data-stage="implement"] { --stage-color: var(--amber); }
 .flow-node[data-stage="verify"] { --stage-color: var(--mint); }
 .flow-node[data-stage="release"] { --stage-color: #89a7ff; }
+.flow-node[data-stage="observe"], .stage-observe { --stage-color: var(--cyan); --accent: var(--cyan); }
 .flow-node span { display: flex; flex-direction: column; }
 .flow-node small { color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
 .flow-node strong { font-size: 10px; line-height: 1.25; }
+.trace-metrics { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.trace-metrics span { display:flex; gap:6px; align-items:baseline; padding:5px 7px; border:1px solid var(--line); border-radius:6px; background:#0c1814; }
+.trace-metrics small { color:var(--muted); text-transform:uppercase; font-size:7px; letter-spacing:.06em; }
+.trace-metrics b { color:var(--mint); font:700 10px ui-monospace,monospace; }
 .measured-output {
   margin-top: 14px;
   padding: 28px;

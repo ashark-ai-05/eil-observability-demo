@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EIL — Enterprise Intelligence Layer</title>
+<style>
+  /* Tokens lifted verbatim from system-map.html — same system, same palette. */
+  :root {
+    --ink:#090e18; --panel:#10192b; --panel-2:#131e33; --line:#223148; --line-soft:#1a2740;
+    --text:#cbd7e9; --muted:#6f819e; --faint:#46587a; --lex:#5cc2ef; --vec:#efab54; --fuse:#eef4fd; --ok:#5ccb8e; --warn:#ef7d6b;
+    --shadow: 0 1px 0 #ffffff08, 0 12px 34px -20px #000000cc;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    color-scheme:dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --ink:#eef1f6; --panel:#ffffff; --panel-2:#f2f5fa; --line:#cbd4e2; --line-soft:#dbe2ec;
+      --text:#16202f; --muted:#5d6c85; --faint:#8794a8; --lex:#1f8fc7; --vec:#c07914; --fuse:#0d1524; --ok:#1f9d63; --warn:#c0442f;
+      --shadow: 0 1px 0 #ffffff, 0 10px 26px -20px #23324a55; color-scheme:light; }
+  }
+  :root[data-theme="dark"]{ --ink:#090e18; --panel:#10192b; --panel-2:#131e33; --line:#223148; --line-soft:#1a2740;
+    --text:#cbd7e9; --muted:#6f819e; --faint:#46587a; --lex:#5cc2ef; --vec:#efab54; --fuse:#eef4fd; --ok:#5ccb8e; --warn:#ef7d6b;
+    --shadow: 0 1px 0 #ffffff08, 0 12px 34px -20px #000000cc; color-scheme:dark; }
+  :root[data-theme="light"]{ --ink:#eef1f6; --panel:#ffffff; --panel-2:#f2f5fa; --line:#cbd4e2; --line-soft:#dbe2ec;
+    --text:#16202f; --muted:#5d6c85; --faint:#8794a8; --lex:#1f8fc7; --vec:#c07914; --fuse:#0d1524; --ok:#1f9d63; --warn:#c0442f;
+    --shadow: 0 1px 0 #ffffff, 0 10px 26px -20px #23324a55; color-scheme:light; }
+
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; scroll-snap-type:y proximity; }
+  body { margin:0; background:var(--ink); color:var(--text); font-family:var(--mono); font-size:15px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; letter-spacing:-0.01em;
+    background-image: radial-gradient(110% 70% at 88% -8%, color-mix(in oklab, var(--lex) 8%, transparent), transparent 60%),
+      radial-gradient(110% 70% at 6% 108%, color-mix(in oklab, var(--vec) 7%, transparent), transparent 55%);
+    background-attachment:fixed; }
+  .wrap { width:100%; margin:0; padding:0; }
+
+  /* ── the deck: one section per screen ───────────────────────────────── */
+  .page { min-height:100vh; scroll-snap-align:start; display:flex; flex-direction:column;
+    justify-content:center; padding:clamp(56px,8vh,96px) clamp(16px,3.2vw,48px) clamp(36px,6vh,72px); }
+  .page-inner { width:100%; max-width:1340px; margin:0 auto; }
+
+  /* fixed brand, top-left */
+  .brand { position:fixed; top:20px; left:clamp(20px,5vw,72px); z-index:20; display:flex; align-items:center; gap:11px;
+    padding:6px 4px; }
+  .brand .glyph { width:28px; height:28px; flex:none; }
+  .brand .word { font-size:16px; font-weight:700; letter-spacing:0.02em; }
+  .brand .word span { color:var(--muted); font-weight:500; }
+
+  /* fixed clickable navigator, right-centre */
+  nav.deck { position:fixed; top:50%; right:clamp(14px,2.6vw,34px); transform:translateY(-50%); z-index:20;
+    display:flex; flex-direction:column; gap:4px; }
+  nav.deck a { display:flex; align-items:center; gap:10px; justify-content:flex-end; text-decoration:none;
+    color:var(--faint); font-size:11px; letter-spacing:0.06em; text-transform:uppercase; padding:5px 2px; }
+  nav.deck a .lbl { opacity:0; transform:translateX(6px); transition:opacity .18s, transform .18s; }
+  nav.deck a .dot { width:9px; height:9px; border-radius:50%; border:1.5px solid var(--faint); flex:none; transition:all .18s; }
+  nav.deck a:hover { color:var(--text); }
+  nav.deck a:hover .lbl { opacity:1; transform:none; }
+  nav.deck a:hover .dot { border-color:var(--text); }
+  nav.deck a.active { color:var(--lex); }
+  nav.deck a.active .lbl { opacity:1; transform:none; }
+  nav.deck a.active .dot { border-color:var(--lex); background:var(--lex); box-shadow:0 0 0 4px color-mix(in oklab, var(--lex) 18%, transparent); }
+
+  /* prev / next affordance, bottom-centre */
+  .pager { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); z-index:20;
+    display:flex; gap:12px; align-items:center; }
+  .pager a { color:var(--faint); text-decoration:none; font-size:18px; line-height:1; border:1px solid var(--line);
+    background:color-mix(in oklab, var(--panel) 78%, transparent); border-radius:50%; width:34px; height:34px;
+    display:flex; align-items:center; justify-content:center; }
+  .pager a:hover { color:var(--lex); border-color:var(--lex); }
+
+
+  h2 { font-size:13px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--text);
+    margin:0 0 clamp(18px,3vh,34px); display:flex; align-items:baseline; gap:12px; }
+  h2 .sub { margin-left:auto; font-weight:400; letter-spacing:0.02em; text-transform:none; color:var(--faint); font-size:12px; }
+  .band { }
+
+  /* ── the diagram ────────────────────────────────────────────────────── */
+  .scroll { overflow-x:auto; }
+  .flow { display:block; width:100%; height:auto; }
+  .flow text { font-family:var(--mono); }
+  .st { fill:var(--panel); stroke:var(--line); }
+  .chip { fill:var(--panel-2); stroke:var(--line-soft); }
+  .t-hd { font-size:12.5px; font-weight:600; fill:var(--text); }
+  .t-sm { font-size:9.5px; fill:var(--muted); }
+  .t-xs { font-size:8.5px; fill:var(--faint); }
+  .w { fill:none; stroke:var(--faint); stroke-width:1.6; stroke-linecap:round; }
+  .w.lex { stroke:var(--lex); } .w.fuse { stroke:var(--fuse); } .w.warn { stroke:var(--warn); }
+  .tip { fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  /* Twelve crossing wires. Kept faint and thin on purpose — the impression of
+     clutter is the argument, so it must not read as a tidy schematic. */
+  .mesh path { fill:none; stroke:var(--warn); stroke-width:1.1; opacity:.42; }
+
+  /* ── motion — dashed flow lines and a soft node pulse ─────────────────── */
+  @keyframes dash { to { stroke-dashoffset:-1000; } }
+  @keyframes floaty { 0%,100%{ opacity:.45 } 50%{ opacity:1 } }
+  @media (prefers-reduced-motion: no-preference) {
+    .signal { stroke-dasharray:6 9; animation:dash 13s linear infinite; }
+    .signal.slow { stroke-dasharray:5 8; animation:dash 22s linear infinite; }
+    .pulse { animation:floaty 3s ease-in-out infinite; }
+  }
+
+  .legend { display:flex; gap:18px; flex-wrap:wrap; margin:14px 2px 0; font-size:10.5px; color:var(--muted); letter-spacing:0; }
+  .legend i { font-style:normal; display:inline-flex; align-items:center; gap:6px; }
+  /* Swatches, not colour names: --fuse is near-white in dark and near-black in
+     light, so the word "white" would be a lie half the time. */
+  .legend i::before { content:""; width:8px; height:8px; border-radius:2px; background:var(--sw, var(--faint)); flex:none; }
+
+  /* ── cost ─────────────────────────────────────────────────────────────
+     Drawn as documents rather than bars: a document is the thing that
+     actually enters a model's context, so eight pages against eight strips
+     needs no reading. The ratio is read straight off the two totals for this
+     one question — 21,700 vs 7,400 chars — not an average across questions. */
+  .cost { min-width:900px; }
+  .hub { min-width:820px; }
+  .spoke path { fill:none; stroke:var(--lex); stroke-width:1.5; opacity:.6; }
+  .foot { font-size:10.5px; color:var(--faint); letter-spacing:0; margin:14px 0 0; }
+  .foot code { color:var(--lex); }
+
+  .base { margin-top:9px; border:1px solid color-mix(in oklab, var(--lex) 34%, var(--line)); border-radius:9px;
+    background:linear-gradient(180deg, color-mix(in oklab, var(--lex) 9%, var(--panel)), var(--panel));
+    padding:13px 14px 14px; position:relative; }
+  .base::before { content:""; position:absolute; top:-9px; left:10%; right:10%; height:9px;
+    border:1px dashed var(--line); border-bottom:0; border-radius:5px 5px 0 0; }
+  .base strong { font-size:12px; color:var(--lex); font-weight:700; }
+  .base em { font-style:normal; font-size:10px; color:var(--faint); letter-spacing:0.05em; text-transform:uppercase; margin-left:8px; }
+  .parts { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; }
+  .part { font-size:10px; color:var(--muted); background:var(--panel-2); border:1px solid var(--line);
+    border-radius:6px; padding:4px 8px; letter-spacing:0; }
+  .part b { color:var(--text); font-weight:600; }
+
+  footer { margin-top:46px; padding-top:16px; border-top:1px solid var(--line-soft);
+    display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; font-size:10.5px; color:var(--faint); }
+
+  @media (prefers-reduced-motion: reduce) { .svc { transition:none; } .svc:hover { transform:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <svg class="glyph" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+      <rect x="1" y="1" width="38" height="38" rx="9" stroke="var(--line)"/>
+      <path d="M11 14h18M11 20h18M11 26h11" stroke="var(--lex)" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="27.5" cy="26" r="2.6" fill="var(--vec)"/></svg>
+    <div class="word">EIL <span>· Enterprise Intelligence Layer</span></div>
+  </div>
+
+  <nav class="deck" aria-label="Sections">
+    <a href="#problem"><span class="lbl">Problem</span><span class="dot"></span></a>
+    <a href="#solution"><span class="lbl">Solution</span><span class="dot"></span></a>
+    <a href="#effect"><span class="lbl">Effect</span><span class="dot"></span></a>
+    <a href="#uses"><span class="lbl">Uses</span><span class="dot"></span></a>
+    <a href="#observability"><span class="lbl">Observability</span><span class="dot"></span></a>
+  </nav>
+
+  <!-- ── 1 · the problem ────────────────────────────────────────────────── -->
+  <section class="page" id="problem">
+   <div class="page-inner">
+    <h2>The problem<span class="sub">everyone searches on their own</span></h2>
+    <div class="scroll">
+      <svg class="flow" viewBox="0 0 1200 200" fill="none" role="img"
+           aria-label="Four people — Engineer, BA, Support, Risk Ops — each query three source systems separately. Every question re-reads the source, whole pages are handed to a large prominent LLM each time, and cost grows with people multiplied by questions.">
+        <!-- every person, to every system, every time: the tangle is the point -->
+        <g class="mesh">
+          <path class="signal" d="M132 40 C 260 40, 300 48, 424 48"/>
+          <path class="signal" d="M132 40 C 260 40, 300 100, 424 100"/>
+          <path class="signal" d="M132 40 C 260 40, 300 152, 424 152"/>
+          <path class="signal" d="M132 80 C 260 80, 300 48, 424 48"/>
+          <path class="signal" d="M132 80 C 260 80, 300 100, 424 100"/>
+          <path class="signal" d="M132 80 C 260 80, 300 152, 424 152"/>
+          <path class="signal" d="M132 120 C 260 120, 300 48, 424 48"/>
+          <path class="signal" d="M132 120 C 260 120, 300 100, 424 100"/>
+          <path class="signal" d="M132 120 C 260 120, 300 152, 424 152"/>
+          <path class="signal" d="M132 160 C 260 160, 300 48, 424 48"/>
+          <path class="signal" d="M132 160 C 260 160, 300 100, 424 100"/>
+          <path class="signal" d="M132 160 C 260 160, 300 152, 424 152"/>
+        </g>
+
+        <text class="t-xs" x="20" y="16">who's asking</text>
+        <g>
+          <rect class="chip" x="20" y="26" width="112" height="28" rx="6"/><text class="t-sm" x="30" y="44">Engineer</text>
+          <rect class="chip" x="20" y="66" width="112" height="28" rx="6"/><text class="t-sm" x="30" y="84">BA</text>
+          <rect class="chip" x="20" y="106" width="112" height="28" rx="6"/><text class="t-sm" x="30" y="124">Support</text>
+          <rect class="chip" x="20" y="146" width="112" height="28" rx="6"/><text class="t-sm" x="30" y="164">Risk Ops</text>
+        </g>
+
+        <text class="t-xs" x="424" y="24">one pipe per system</text>
+        <g>
+          <rect class="st" x="424" y="34" width="150" height="28" rx="6"/><text class="t-sm" x="436" y="52">Confluence MCP</text>
+          <rect class="st" x="424" y="86" width="150" height="28" rx="6"/><text class="t-sm" x="436" y="104">Jira MCP</text>
+          <rect class="st" x="424" y="138" width="150" height="28" rx="6"/><text class="t-sm" x="436" y="156">Bitbucket MCP</text>
+        </g>
+
+        <!-- and what comes back each time: whole pages, over and over -->
+        <path class="w warn signal" d="M580 100 h34"/>
+        <path class="tip" d="M610 95l6 5-6 5" stroke="var(--warn)"/>
+        <g stroke="var(--muted)" fill="var(--panel-2)" opacity=".85">
+          <rect x="632" y="50" width="34" height="44" rx="3"/>
+          <rect x="674" y="50" width="34" height="44" rx="3"/>
+          <rect x="716" y="50" width="34" height="44" rx="3"/>
+          <rect x="632" y="106" width="34" height="44" rx="3"/>
+          <rect x="674" y="106" width="34" height="44" rx="3"/>
+          <rect x="716" y="106" width="34" height="44" rx="3"/>
+        </g>
+        <g stroke="var(--muted)" stroke-width="1.4" stroke-linecap="round" opacity=".45">
+          <path d="M638 60h22M638 68h22M638 76h16M680 60h22M680 68h22M680 76h16M722 60h22M722 68h22M722 76h16"/>
+          <path d="M638 116h22M638 124h22M638 132h16M680 116h22M680 124h22M680 132h16M722 116h22M722 124h22M722 132h16"/>
+        </g>
+        <text class="t-xs" x="632" y="170" fill="var(--warn)">whole pages, every time</text>
+
+        <!-- every question ends in a model call, each one carrying a whole page -->
+        <path class="w warn signal" d="M752 100 H 780"/>
+        <path class="tip" d="M774 94l6 6-6 6" stroke="var(--warn)"/>
+
+        <!-- the LLM: drawn large, because this is where the cost is paid -->
+        <path d="M858 44 L924 100 L858 156 L792 100 Z" fill="var(--panel-2)" stroke="var(--warn)" stroke-width="2.2"/>
+        <text x="858" y="107" text-anchor="middle" font-size="20" font-weight="700" fill="var(--warn)" font-family="var(--mono)">LLM</text>
+        <text class="t-xs" x="858" y="170" text-anchor="middle" fill="var(--warn)">a whole page in, every question</text>
+
+        <path d="M978 26 v148" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 4"/>
+        <circle class="pulse" cx="998" cy="44" r="4" fill="var(--warn)"/>
+        <text class="t-hd" x="1012" y="48" fill="var(--warn)">Nothing is shared</text>
+        <text class="t-sm" x="998" y="74">Every question re-reads the source.</text>
+        <text class="t-sm" x="998" y="92">Whole pages go into the LLM.</text>
+        <text class="t-sm" x="998" y="110">The same answer is paid for again</text>
+        <text class="t-sm" x="998" y="128">by the next person who asks.</text>
+        <text x="998" y="158" font-size="14" font-weight="700" fill="var(--warn)" font-family="var(--mono)">people × questions</text>
+        <text class="t-xs" x="998" y="174">is the cost curve, and it only goes up</text>
+      </svg>
+    </div>
+   </div>
+  </section>
+
+  <!-- ── 2 · the solution ───────────────────────────────────────────────── -->
+  <section class="page" id="solution">
+   <div class="page-inner">
+    <h2>The solution<span class="sub">index once · no model in the retrieval path</span></h2>
+    <div class="scroll">
+      <svg class="flow" viewBox="0 0 1060 268" fill="none" role="img"
+           aria-label="Sources feed one index; retrieval fuses five arms with no model; two MCP calls serve an agent; usage returns to steer indexing; governance gates every read.">
+
+        <!-- learning loop, returning over the top -->
+        <path class="w lex signal slow" d="M946 66 C 946 26, 900 22, 800 22 L 452 22 C 352 22, 307 26, 307 66"/>
+        <path class="tip" d="M302 56l5 10 5-10" stroke="var(--lex)"/>
+        <text class="t-xs" x="530" y="16" text-anchor="middle">what people ask — and what comes back empty — steers what gets indexed</text>
+
+        <!-- wires between stations -->
+        <path class="w signal"      d="M168 130 h58"/><path class="tip" d="M224 125l6 5-6 5" stroke="var(--faint)"/>
+        <path class="w lex signal"  d="M381 130 h58"/><path class="tip" d="M437 125l6 5-6 5" stroke="var(--lex)"/>
+        <path class="w fuse signal" d="M594 130 h58"/><path class="tip" d="M650 125l6 5-6 5" stroke="var(--fuse)"/>
+        <path class="w fuse signal" d="M807 130 h58"/><path class="tip" d="M863 125l6 5-6 5" stroke="var(--fuse)"/>
+
+        <!-- 01 sources -->
+        <rect class="st" x="20" y="66" width="148" height="124" rx="8"/>
+        <text class="t-xs" x="30" y="82">01</text>
+        <text class="t-hd" x="30" y="98">Sources</text>
+        <g>
+          <rect class="chip" x="30" y="106" width="128" height="17" rx="4"/><text class="t-sm" x="37" y="118">Confluence</text>
+          <rect class="chip" x="30" y="127" width="128" height="17" rx="4"/><text class="t-sm" x="37" y="139">Jira</text>
+          <rect class="chip" x="30" y="148" width="128" height="17" rx="4"/><text class="t-sm" x="37" y="160">Bitbucket</text>
+          <rect class="chip" x="30" y="169" width="128" height="17" rx="4"/><text class="t-sm" x="37" y="181">Notes · runbooks</text>
+        </g>
+
+        <!-- 02 index -->
+        <rect class="st" x="233" y="66" width="148" height="124" rx="8"/>
+        <text class="t-xs" x="243" y="82">02</text>
+        <text class="t-hd" x="243" y="98">One index</text>
+        <rect class="chip" x="243" y="106" width="128" height="24" rx="4" stroke="var(--lex)"
+              fill="color-mix(in oklab, var(--lex) 11%, transparent)"/>
+        <text class="t-sm" x="250" y="121" fill="var(--lex)">text · tsvector</text>
+        <rect class="chip" x="243" y="134" width="128" height="24" rx="4" stroke="var(--vec)"
+              fill="color-mix(in oklab, var(--vec) 11%, transparent)"/>
+        <text class="t-sm" x="250" y="149" fill="var(--vec)">meaning · float4[]</text>
+        <text class="t-xs" x="243" y="174">one Postgres</text>
+        <text class="t-xs" x="243" y="184" fill="var(--ok)">no extension to install</text>
+
+        <!-- 03 retrieve -->
+        <rect class="st" x="446" y="66" width="148" height="124" rx="8"/>
+        <text class="t-xs" x="456" y="82">03</text>
+        <text class="t-hd" x="456" y="98">Retrieve</text>
+        <g>
+          <rect x="456" y="108" width="44" height="6" rx="3" fill="var(--lex)" opacity=".85"/>
+          <rect x="456" y="120" width="44" height="6" rx="3" fill="var(--lex)" opacity=".6"/>
+          <rect x="456" y="132" width="44" height="6" rx="3" fill="var(--lex)" opacity=".45"/>
+          <rect x="456" y="144" width="44" height="6" rx="3" fill="var(--lex)" opacity=".3"/>
+          <rect x="456" y="156" width="44" height="6" rx="3" fill="var(--vec)" opacity=".8"/>
+          <path class="w signal" d="M502 111 C 528 111, 528 132, 552 132" stroke="var(--faint)" stroke-width="1.2"/>
+          <path class="w signal" d="M502 123 C 528 123, 528 132, 552 132" stroke="var(--faint)" stroke-width="1.2"/>
+          <path class="w signal" d="M502 135 C 528 135, 528 132, 552 132" stroke="var(--faint)" stroke-width="1.2"/>
+          <path class="w signal" d="M502 147 C 528 147, 528 132, 552 132" stroke="var(--faint)" stroke-width="1.2"/>
+          <path class="w signal" d="M502 159 C 528 159, 528 132, 552 132" stroke="var(--faint)" stroke-width="1.2"/>
+          <rect x="548" y="122" width="40" height="20" rx="5" fill="color-mix(in oklab, var(--fuse) 16%, transparent)" stroke="var(--fuse)"/>
+          <text class="t-sm" x="568" y="136" text-anchor="middle" fill="var(--fuse)">rrf</text>
+        </g>
+        <text class="t-xs" x="456" y="176">five arms, fused by rank</text>
+        <text class="t-xs" x="456" y="186" fill="var(--ok)">no model runs here</text>
+
+        <!-- 04 serve -->
+        <rect class="st" x="659" y="66" width="148" height="124" rx="8"/>
+        <text class="t-xs" x="669" y="82">04</text>
+        <text class="t-hd" x="669" y="98">Serve</text>
+        <rect class="chip" x="669" y="106" width="128" height="26" rx="4"/>
+        <text class="t-sm" x="676" y="117" fill="var(--lex)">① search_docs</text>
+        <text class="t-xs" x="676" y="127">ids + snippets</text>
+        <rect class="chip" x="669" y="136" width="128" height="26" rx="4"/>
+        <text class="t-sm" x="676" y="147" fill="var(--fuse)">② get_doc</text>
+        <text class="t-xs" x="676" y="157">only what it opened</text>
+        <text class="t-xs" x="669" y="180">two calls over MCP</text>
+
+        <!-- 05 agents -->
+        <rect class="st" x="872" y="66" width="148" height="124" rx="8"/>
+        <text class="t-xs" x="882" y="82">05</text>
+        <text class="t-hd" x="882" y="98">Agents</text>
+        <rect class="chip" x="882" y="106" width="128" height="17" rx="4"/><text class="t-sm" x="889" y="118">Claude Code</text>
+        <rect class="chip" x="882" y="127" width="128" height="17" rx="4"/><text class="t-sm" x="889" y="139">Amp</text>
+        <rect class="chip" x="882" y="148" width="128" height="17" rx="4"/><text class="t-sm" x="889" y="160">any MCP client</text>
+        <text class="t-xs" x="882" y="181">one grounded answer</text>
+
+        <!-- ticks down to the floor -->
+        <g stroke="color-mix(in oklab, var(--ok) 45%, transparent)" stroke-width="1.2" stroke-dasharray="3 3">
+          <path d="M94 190 v18"/><path d="M307 190 v18"/><path d="M520 190 v18"/><path d="M733 190 v18"/><path d="M946 190 v18"/>
+        </g>
+
+        <!-- governance floor -->
+        <rect x="20" y="208" width="1000" height="46" rx="8"
+              fill="color-mix(in oklab, var(--ok) 7%, var(--panel))" stroke="color-mix(in oklab, var(--ok) 34%, var(--line))"/>
+        <circle class="pulse" cx="42" cy="231" r="3.5" fill="var(--ok)"/>
+        <text x="56" y="228" font-size="11" font-weight="600" fill="var(--ok)" font-family="var(--mono)">GOVERNANCE</text>
+        <text class="t-xs" x="56" y="243">every read passes the same gate · visibility stamped on the document · unstamped = owner only</text>
+        <text class="t-xs" x="1004" y="235" text-anchor="end" fill="var(--ok)">fail-closed</text>
+      </svg>
+    </div>
+    <p class="legend">
+      <i style="--sw:var(--lex)">exact terms</i>
+      <i style="--sw:var(--vec)">meaning</i>
+      <i style="--sw:var(--fuse)">fused, then served</i>
+      <i style="--sw:var(--ok)">governance</i>
+      <i style="--sw:transparent">same query, same order, every time</i>
+    </p>
+   </div>
+  </section>
+
+  <!-- ── cost: drawn as documents, because documents are what enter a model ── -->
+  <section class="page" id="effect">
+   <div class="page-inner">
+    <h2>The effect<span class="sub">one question · 8 matches</span></h2>
+    <div class="scroll">
+      <svg class="flow cost" viewBox="0 0 1060 250" fill="none" role="img"
+           aria-label="Engineer, BA and Support ask one query into one index. The index returns eight one-line previews; the agent opens the single document it needs and sends only that to the LLM — about 7,400 characters, roughly 1,900 tokens, 2.3 times less than handing over all eight pages in full. And the same query returns the same ids in the same order every time, because no model runs in the search path.">
+        <defs>
+          <!-- one document: a page with lines on it -->
+          <g id="doc">
+            <rect width="42" height="54" rx="3" fill="var(--panel-2)" stroke="currentColor" opacity=".9"/>
+            <g stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".55">
+              <path d="M7 12h28M7 20h28M7 28h28M7 36h22M7 44h26"/>
+            </g>
+          </g>
+          <g id="strip">
+            <rect width="42" height="10" rx="2" fill="var(--panel-2)" stroke="currentColor" opacity=".9"/>
+            <path d="M7 5h24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>
+          </g>
+        </defs>
+
+        <!-- the good path, animated: ask once → search → fetch one → send that on -->
+        <text class="t-xs" x="20" y="16">who's asking</text>
+        <rect class="chip" x="20" y="26" width="112" height="28" rx="6"/><text class="t-sm" x="30" y="44">Engineer</text>
+        <rect class="chip" x="20" y="66" width="112" height="28" rx="6"/><text class="t-sm" x="30" y="84">BA</text>
+        <rect class="chip" x="20" y="106" width="112" height="28" rx="6"/><text class="t-sm" x="30" y="124">Support</text>
+        <rect class="chip" x="20" y="146" width="112" height="28" rx="6"/><text class="t-sm" x="30" y="164">Risk Ops</text>
+
+        <!-- ① one query, into one index -->
+        <path class="w lex signal" d="M132 40 C 168 40, 172 100, 196 92"/>
+        <path class="w lex signal" d="M132 80 C 178 80, 180 100, 196 96"/>
+        <path class="w lex signal" d="M132 120 C 178 120, 180 100, 196 104"/>
+        <path class="w lex signal" d="M132 160 C 168 160, 172 100, 196 108"/>
+        <text class="t-xs" x="196" y="48">① one query, one place</text>
+        <rect class="st" x="196" y="66" width="150" height="68" rx="10"/>
+        <text class="t-sm" x="212" y="96">One index</text>
+        <text class="t-xs" x="212" y="114">one Postgres · every source</text>
+
+        <!-- ② search returns previews -->
+        <path class="w fuse signal" d="M346 100 H 404"/>
+        <path class="tip" d="M398 94l7 6-7 6" stroke="var(--fuse)"/>
+        <text class="t-xs" x="416" y="48">② search</text>
+        <g color="var(--muted)">
+          <use href="#strip" x="416" y="56"/>
+          <use href="#strip" x="416" y="68"/>
+          <use href="#strip" x="416" y="80"/>
+          <use href="#strip" x="416" y="92"/>
+          <use href="#strip" x="416" y="104"/>
+          <use href="#strip" x="416" y="116"/>
+          <use href="#strip" x="416" y="128"/>
+          <use href="#strip" x="416" y="140"/>
+        </g>
+
+        <!-- ③ fetch the one it opened -->
+        <path class="w fuse signal" d="M462 100 H 500"/>
+        <path class="tip" d="M494 94l7 6-7 6" stroke="var(--fuse)"/>
+        <text class="t-xs" x="512" y="48" fill="var(--ok)">③ get_doc</text>
+        <g color="var(--ok)"><use href="#doc" x="512" y="73"/></g>
+        <text class="t-xs" x="416" y="158">8 previews</text>
+        <text class="t-xs" x="512" y="158" fill="var(--ok)">one document</text>
+
+        <!-- ④ send that one document to the model -->
+        <path class="w fuse signal" d="M556 100 H 616"/>
+        <path class="tip" d="M610 94l7 6-7 6" stroke="var(--fuse)"/>
+        <path d="M672 66 L712 100 L672 134 L632 100 Z" fill="var(--panel-2)" stroke="var(--fuse)" stroke-width="2"/>
+        <text x="672" y="105" text-anchor="middle" font-size="14" font-weight="700" fill="var(--fuse)" font-family="var(--mono)">LLM</text>
+        <text class="t-xs" x="672" y="158" text-anchor="middle" fill="var(--fuse)">a fraction of the load</text>
+
+        <!-- the payoff, read off the two totals — no averaging -->
+        <path d="M748 30 v150" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 4"/>
+        <text x="776" y="76" font-size="24" font-weight="700" fill="var(--fuse)" font-family="var(--mono)">2.3×</text>
+        <text class="t-xs" x="776" y="94">less into the LLM — same answer</text>
+        <text class="t-sm" x="776" y="120" fill="var(--muted)" font-family="var(--mono)">17,032 → 7,434 chars</text>
+        <text class="t-xs" x="776" y="136">hand over all 8 pages → send just one</text>
+        <text class="t-xs" x="776" y="158">the search hits the index, not a model</text>
+
+        <!-- determinism: the same query returns the same order, every time -->
+        <path d="M20 206 h1020" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 4"/>
+        <text class="t-hd" x="20" y="228">Ask it again</text>
+        <text class="t-xs" x="20" y="242">the identical query</text>
+        <g fill="var(--lex)" opacity=".85">
+          <rect x="250" y="214" width="46" height="6" rx="2"/>
+          <rect x="250" y="224" width="34" height="6" rx="2"/>
+          <rect x="250" y="234" width="40" height="6" rx="2"/>
+        </g>
+        <text x="312" y="232" font-size="15" fill="var(--faint)" font-family="var(--mono)">≡</text>
+        <g fill="var(--lex)" opacity=".85">
+          <rect x="336" y="214" width="46" height="6" rx="2"/>
+          <rect x="336" y="224" width="34" height="6" rx="2"/>
+          <rect x="336" y="234" width="40" height="6" rx="2"/>
+        </g>
+        <text x="398" y="232" font-size="15" fill="var(--faint)" font-family="var(--mono)">≡</text>
+        <g fill="var(--lex)" opacity=".85">
+          <rect x="422" y="214" width="46" height="6" rx="2"/>
+          <rect x="422" y="224" width="34" height="6" rx="2"/>
+          <rect x="422" y="234" width="40" height="6" rx="2"/>
+        </g>
+        <text class="t-sm" x="500" y="223" fill="var(--lex)">same ids · same order · byte for byte</text>
+        <text class="t-xs" x="500" y="237">no model in the search path — nothing to have a bad day</text>
+      </svg>
+    </div>
+   </div>
+  </section>
+
+  <!-- ── what runs on it ────────────────────────────────────────────────── -->
+  <section class="page" id="uses">
+   <div class="page-inner">
+    <h2>Uses<span class="sub">one index, many front doors</span></h2>
+    <div class="scroll">
+      <svg class="flow hub" viewBox="0 0 1060 430" fill="none" role="img"
+           aria-label="One index at the centre; eight applications around it, each a spoke. EIL provides permissions, audit and metrics to every spoke — they are capabilities of the layer, not things each app brings.">
+        <!-- spokes first, so the boxes paint over their ends -->
+        <g class="spoke">
+          <path class="signal" d="M530 215 L905 215"/>
+          <path class="signal" d="M530 215 L799 109"/>
+          <path class="signal" d="M530 215 L530 62"/>
+          <path class="signal" d="M530 215 L261 109"/>
+          <path class="signal" d="M530 215 L155 215"/>
+          <path class="signal" d="M530 215 L261 321"/>
+          <path class="signal" d="M530 215 L530 368"/>
+          <path class="signal" d="M530 215 L799 321"/>
+        </g>
+
+        <!-- concentric collar: the governance/observability layer EIL wraps around
+             every answer. Amber, so it reads as a different thing to the blue hub,
+             and drawn before the hub box so the box sits inside it. -->
+        <rect x="389" y="151" width="282" height="128" rx="22"
+              fill="color-mix(in oklab, var(--vec) 7%, transparent)"
+              stroke="color-mix(in oklab, var(--vec) 55%, var(--line))" stroke-width="1.4" stroke-dasharray="5 4"/>
+
+        <!-- the hub -->
+        <rect x="415" y="175" width="230" height="80" rx="14"
+              fill="color-mix(in oklab, var(--lex) 12%, var(--panel))"
+              stroke="color-mix(in oklab, var(--lex) 52%, var(--line))" stroke-width="1.5"/>
+        <text x="530" y="209" text-anchor="middle" font-size="19" font-weight="700"
+              fill="var(--lex)" font-family="var(--mono)">EIL</text>
+        <text class="t-xs" x="530" y="226" text-anchor="middle">one index · one gate · one audit</text>
+        <text class="t-xs" x="530" y="240" text-anchor="middle">indexed once, read by all of them</text>
+
+        <!-- the spokes -->
+        <g>
+          <rect class="st" x="826" y="197" width="158" height="36" rx="8"/><text class="t-sm" x="840" y="219">Ask anything</text>
+          <rect class="st" x="720" y="91"  width="158" height="36" rx="8"/><text class="t-sm" x="734" y="113">Onboarding</text>
+          <rect class="st" x="451" y="44"  width="158" height="36" rx="8"/><text class="t-sm" x="465" y="66">Org search</text>
+          <rect class="st" x="182" y="91"  width="158" height="36" rx="8"/><text class="t-sm" x="196" y="113">Incident context</text>
+          <rect class="st" x="76"  y="197" width="158" height="36" rx="8"/><text class="t-sm" x="90"  y="219">Review context</text>
+          <rect class="st" x="182" y="303" width="158" height="36" rx="8"/><text class="t-sm" x="196" y="325">Requirements gate</text>
+          <rect class="st" x="451" y="350" width="158" height="36" rx="8"/><text class="t-sm" x="465" y="372">Control evidence</text>
+          <rect class="st" x="720" y="303" width="158" height="36" rx="8"/><text class="t-sm" x="734" y="325">Docs health</text>
+        </g>
+
+        <!-- the collar's label — provided by EIL to every spoke -->
+        <text class="t-sm" x="530" y="273" text-anchor="middle" fill="var(--vec)">Permissions · Audit · Metrics</text>
+      </svg>
+    </div>
+   </div>
+  </section>
+
+
+  <!-- ── 5 · observability ──────────────────────────────────────────────── -->
+  <section class="page" id="observability">
+   <div class="page-inner">
+    <h2>Observability<span class="sub">every answer leaves a receipt</span></h2>
+    <div class="scroll">
+      <svg class="flow" viewBox="0 0 1200 470" fill="none" role="img"
+           aria-label="A measured delivery run across five stages, each emitting a canonical event into one ledger. The ledger yields run time, captured and unattributed time, cost provenance, and whether the verified change was observed. Capture is metadata-only: a digest of the query is stored, never the query.">
+
+        <!-- the delivery run, left to right -->
+        <g>
+          <rect class="st" x="30"  y="34" width="188" height="52" rx="9"/>
+          <text class="t-hd" x="48" y="58">Task</text><text class="t-xs" x="48" y="72">ticket · inception</text>
+          <rect class="st" x="278" y="34" width="188" height="52" rx="9"/>
+          <text class="t-hd" x="296" y="58">Evidence</text><text class="t-xs" x="296" y="72">retrieval · EIL</text>
+          <rect class="st" x="526" y="34" width="188" height="52" rx="9"/>
+          <text class="t-hd" x="544" y="58">Change</text><text class="t-xs" x="544" y="72">patch · commit</text>
+          <rect class="st" x="774" y="34" width="188" height="52" rx="9"/>
+          <text class="t-hd" x="792" y="58">Verify</text><text class="t-xs" x="792" y="72">tests · CI gates</text>
+          <rect class="st" x="1000" y="34" width="170" height="52" rx="9"/>
+          <text class="t-hd" x="1018" y="58">Observe</text><text class="t-xs" x="1018" y="72">persist · replay</text>
+        </g>
+        <g>
+          <path class="w lex signal" d="M218 60 L272 60"/><path class="tip" stroke="var(--lex)" d="M266 55 L273 60 L266 65"/>
+          <path class="w lex signal" d="M466 60 L520 60"/><path class="tip" stroke="var(--lex)" d="M514 55 L521 60 L514 65"/>
+          <path class="w lex signal" d="M714 60 L768 60"/><path class="tip" stroke="var(--lex)" d="M708 55 L715 60 L708 65"/>
+          <path class="w lex signal" d="M962 60 L994 60"/><path class="tip" stroke="var(--lex)" d="M988 55 L995 60 L988 65"/>
+        </g>
+
+        <!-- every stage drops a receipt -->
+        <g>
+          <path class="w signal slow" d="M124 86 L124 176"/><path class="tip" stroke="var(--faint)" d="M119 170 L124 177 L129 170"/>
+          <path class="w signal slow" d="M372 86 L372 176"/><path class="tip" stroke="var(--faint)" d="M367 170 L372 177 L377 170"/>
+          <path class="w signal slow" d="M620 86 L620 176"/><path class="tip" stroke="var(--faint)" d="M615 170 L620 177 L625 170"/>
+          <path class="w signal slow" d="M868 86 L868 176"/><path class="tip" stroke="var(--faint)" d="M863 170 L868 177 L873 170"/>
+          <path class="w signal slow" d="M1085 86 L1085 176"/><path class="tip" stroke="var(--faint)" d="M1080 170 L1085 177 L1090 170"/>
+        </g>
+
+        <!-- the collar: the same amber governance wrapper the Uses slide names -->
+        <rect x="18" y="162" width="1164" height="104" rx="20"
+              fill="color-mix(in oklab, var(--vec) 6%, transparent)"
+              stroke="color-mix(in oklab, var(--vec) 52%, var(--line))" stroke-width="1.4" stroke-dasharray="5 4"/>
+
+        <rect class="chip" x="44" y="184" width="1112" height="60" rx="11"/>
+        <text class="t-hd" x="66" y="208" fill="var(--vec)">Canonical event</text>
+        <text class="t-sm" x="196" y="208">one contract — Copilot · Amp · MaaS · EIL · CI · the proxy</text>
+        <text class="t-xs" x="66" y="228">metadata only · a sha256 digest of the query is stored, the query itself never is · a retry is a no-op, a correction is a new row</text>
+        <text class="t-sm" x="1140" y="208" text-anchor="end" fill="var(--vec)">append-only</text>
+
+        <!-- what the ledger yields -->
+        <g>
+          <path class="w signal slow" d="M232 266 L232 320"/><path class="tip" stroke="var(--faint)" d="M227 314 L232 321 L237 314"/>
+          <path class="w signal slow" d="M508 266 L508 320"/><path class="tip" stroke="var(--faint)" d="M503 314 L508 321 L513 314"/>
+          <path class="w signal slow" d="M784 266 L784 320"/><path class="tip" stroke="var(--faint)" d="M779 314 L784 321 L789 314"/>
+          <path class="w signal slow" d="M1024 266 L1024 320"/><path class="tip" stroke="var(--faint)" d="M1019 314 L1024 321 L1029 314"/>
+        </g>
+
+        <g>
+          <rect class="st" x="118" y="330" width="228" height="76" rx="10"/>
+          <text class="t-xs" x="138" y="352">RUN TIME</text>
+          <text id="obs-elapsed" x="138" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">run lifecycle</text>
+          <text class="t-xs" x="138" y="394">measured during this execution</text>
+
+          <rect x="394" y="330" width="228" height="76" rx="10"
+                fill="color-mix(in oklab, var(--vec) 9%, var(--panel))"
+                stroke="color-mix(in oklab, var(--vec) 50%, var(--line))"/>
+          <text class="t-xs" x="414" y="352">CAPTURED / UNATTRIBUTED</text>
+          <text id="obs-work-wait" x="414" y="378" font-size="20" font-weight="700" fill="var(--vec)" font-family="var(--mono)">unknown</text>
+          <text class="t-xs" x="414" y="394">derived from measured spans</text>
+
+          <rect class="st" x="670" y="330" width="228" height="76" rx="10"/>
+          <text class="t-xs" x="690" y="352">COST PER OUTCOME</text>
+          <text id="obs-cost" x="690" y="378" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--mono)">unknown</text>
+          <text class="t-xs" x="690" y="394">no model call is not a priced call</text>
+
+          <rect x="946" y="330" width="228" height="76" rx="10"
+                fill="color-mix(in oklab, var(--ok) 9%, var(--panel))"
+                stroke="color-mix(in oklab, var(--ok) 50%, var(--line))"/>
+          <text class="t-xs" x="966" y="352">VERIFIED + OBSERVED</text>
+          <text id="obs-proof" x="966" y="378" font-size="20" font-weight="700" fill="var(--ok)" font-family="var(--mono)">run lifecycle</text>
+          <text class="t-xs" x="966" y="394">real test and ingestion lineage required</text>
+        </g>
+
+        <text class="t-xs" x="18" y="440">A number that cannot be measured is reported as <tspan fill="var(--warn)">unknown</tspan> — never as zero, and never as $0.</text>
+        <text class="t-xs" x="1182" y="440" text-anchor="end">inference is forbidden from claiming certainty</text>
+      </svg>
+    </div>
+   </div>
+  </section>
+
+  <div class="pager">
+    <a href="#problem" aria-label="First section" title="Top">↑</a>
+    <a id="next" href="#solution" aria-label="Next section" title="Next">↓</a>
+  </div>
+
+</div>
+
+<script>
+  // Highlight the section in view and keep the ↓ pager pointing at the next one.
+  const ids = ["problem", "solution", "effect", "uses", "observability"];
+  const links = new Map(ids.map((id) => [id, document.querySelector('nav.deck a[href="#' + id + '"]')]));
+  const next = document.getElementById("next");
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      const id = e.target.id;
+      for (const a of links.values()) a.classList.remove("active");
+      links.get(id)?.classList.add("active");
+      const i = ids.indexOf(id);
+      const target = ids[i + 1] ?? ids[0];
+      next.setAttribute("href", "#" + target);
+      next.textContent = i === ids.length - 1 ? "↑" : "↓";
+    }
+  }, { threshold: 0.55 });
+  for (const id of ids) io.observe(document.getElementById(id));
+
+  // When served by `pnpm cockpit`, the observability slide reads the same
+  // captured run as the cockpit. The standalone deck intentionally keeps
+  // unknown placeholders instead of embedding a reference run that can drift.
+  const duration = (seconds) => {
+    if (!Number.isFinite(seconds)) return "unknown";
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+  };
+  fetch("/api/run")
+    .then((response) => {
+      if (!response.ok) throw new Error("run unavailable");
+      return response.json();
+    })
+    .then((run) => {
+      const elapsed = run.summary.elapsedSeconds;
+      const captured = run.steps.reduce((total, step) => total + step.durationSeconds, 0);
+      const capturedPct = elapsed > 0 ? Math.round((captured / elapsed) * 100) : 0;
+      document.getElementById("obs-elapsed").textContent = duration(elapsed);
+      document.getElementById("obs-work-wait").textContent = `${capturedPct} / ${100 - capturedPct}`;
+      document.getElementById("obs-cost").textContent = run.summary.totalCostUsd === null
+        ? "unknown"
+        : `$${run.summary.totalCostUsd.toFixed(2)}`;
+      document.getElementById("obs-proof").textContent = run.summary.verifiedShipping ? "Proven" : "Unproven";
+    })
+    .catch(() => {});
+</script>
+</body>
+</html>

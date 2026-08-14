@@ -31,44 +31,44 @@ const RULE = "─".repeat(WIDTH);
 const CHART = 44;
 
 const clock = (seconds) => {
+  if (seconds < 1) return `${Math.round(seconds * 1000)}ms`;
   const m = Math.floor(seconds / 60);
   const s = Math.round(seconds % 60);
   return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
 };
-const usd = (n) => `$${n.toFixed(2)}`;
+const usd = (n) => n === null ? "unknown" : `$${n.toFixed(2)}`;
 const pct = (n) => `${Math.round(n * 100)}%`;
 
 const model = await cockpitModel(resolve(fileURLToPath(new URL("..", import.meta.url))));
 const { summary: sum, task, steps, stages, pricing } = model;
+const measured = model.mode === "measured";
 
-console.log(`\n${c.cyan(c.bold("DELIVERY INTELLIGENCE"))}  ${c.dim("one task, intake to production")}`);
+console.log(`\n${c.cyan(c.bold("DELIVERY INTELLIGENCE"))}  ${c.dim(measured ? "fixture intake to verified receipt" : "one task, intake to production")}`);
 console.log(c.dim(`${task.id} · ${task.title}`));
 console.log(c.dim(`${task.service} · ${task.repository} · correlation ${model.correlationId}`));
-console.log(
-  `\n${warnChip(" SIMULATED ")} ${c.dim("Jira, Confluence, Bamboo and deployment steps are fixtures,")}`,
-);
-console.log(`             ${c.dim("not live corporate telemetry. Every number below is derived")}`);
-console.log(`             ${c.dim("from the trace, not written into the page.")}`);
+console.log(`\n${measured ? okChip(" MEASURED ") : warnChip(" SIMULATED ")} ${c.dim(measured
+  ? "Only Confluence, Jira and code content are synthetic; operations and metrics executed."
+  : "Jira, Confluence, Bamboo and deployment steps are fixtures, not live corporate telemetry.")}`);
 
 // ── The four numbers an executive reads ─────────────────────────────────────
 console.log(`\n${c.grey(RULE)}`);
-console.log(`${chip(" 01 ")} ${c.bold("What it cost to ship one change")}`);
+console.log(`${chip(" 01 ")} ${c.bold(measured ? "What one verified change consumed" : "What it cost to ship one change")}`);
 console.log(`    ${c.dim("The denominator is one accepted, verification-backed outcome.")}\n`);
 
 const kpi = (label, value, note) =>
   `    ${c.dim(label.padEnd(18))} ${c.bold(value.padEnd(12))} ${c.dim(note)}`;
-console.log(kpi("lead time", clock(sum.elapsedSeconds), "intake → production"));
+console.log(kpi(measured ? "run wall time" : "lead time", clock(sum.elapsedSeconds), measured ? `${steps.length} captured spans` : "intake → production"));
 console.log(
   kpi("active work", clock(sum.activeSeconds), `${pct(sum.activeSeconds / sum.elapsedSeconds)} of elapsed`),
 );
 console.log(
-  `    ${c.dim("waiting".padEnd(18))} ${c.amber(c.bold(clock(sum.waitSeconds).padEnd(12)))} ${c.dim(
-    `${pct(sum.waitSeconds / sum.elapsedSeconds)} queue + human + compute`,
+  `    ${c.dim((measured ? "unattributed" : "waiting").padEnd(18))} ${c.amber(c.bold(clock(sum.waitSeconds).padEnd(12)))} ${c.dim(
+    measured ? "startup + build + orchestration" : `${pct(sum.waitSeconds / sum.elapsedSeconds)} queue + human + compute`,
   )}`,
 );
-console.log(kpi("estimated cost", usd(sum.totalCostUsd), pricing.version));
+console.log(kpi(measured ? "cost" : "estimated cost", usd(sum.totalCostUsd), pricing.version ?? "not metered"));
 console.log(
-  `    ${c.dim("verified shipping".padEnd(18))} ${
+  `    ${c.dim((measured ? "verified outcome" : "verified shipping").padEnd(18))} ${
     sum.verifiedShipping ? c.green(c.bold("Proven".padEnd(12))) : c.red(c.bold("Unproven".padEnd(12)))
   } ${c.dim(`${pct(sum.attributionCoverage)} lineage coverage`)}`,
 );
@@ -76,12 +76,15 @@ console.log(
 // ── Where the time actually went ────────────────────────────────────────────
 console.log(`\n${c.grey(RULE)}`);
 console.log(`${chip(" 02 ")} ${c.bold("Where the time actually went")}`);
-console.log(`    ${c.dim("Each bar sits where it happened in the run, not flush left.")}`);
-console.log(`    ${c.amber("▸ look for:")} ${c.amber("the gaps. Reasoning is the short part.")}\n`);
+console.log(`    ${c.dim(measured ? "Executed spans in causal order; unattributed overhead is excluded." : "Each bar sits where it happened in the run, not flush left.")}`);
+console.log(`    ${c.amber("▸ look for:")} ${c.amber(measured ? "the real ingest/index counts, failing-before/passing-after test, and persisted receipt." : "the gaps. Reasoning is the short part.")}\n`);
 console.log(`    ${c.dim(`${c.green(ACTIVE)} active   ${WAIT} waiting`)}\n`);
 
+let measuredCursor = Date.parse(model.startedAt);
 for (const step of steps) {
-  const row = waterfallRow(step, { startedAt: model.startedAt, elapsedSeconds: sum.elapsedSeconds }, CHART);
+  const chartStep = measured ? { ...step, startedAt: new Date(measuredCursor).toISOString() } : step;
+  const row = waterfallRow(chartStep, { startedAt: model.startedAt, elapsedSeconds: measured ? sum.activeSeconds : sum.elapsedSeconds }, CHART);
+  if (measured) measuredCursor += step.durationSeconds * 1000;
   const painted = COLOUR
     ? row.replaceAll(ACTIVE, `\x1b[32m${ACTIVE}\x1b[0m`).replaceAll(WAIT, `\x1b[90m${WAIT}\x1b[0m`)
     : row;
@@ -96,11 +99,11 @@ for (const step of steps) {
   );
 }
 
-const slowest = [...steps].sort((a, b) => b.waitSeconds - a.waitSeconds)[0];
+const slowest = [...steps].sort((a, b) => measured ? b.durationSeconds - a.durationSeconds : b.waitSeconds - a.waitSeconds)[0];
 console.log(
-  `\n    ${c.amber("largest single delay")}  ${c.bold(slowest.action)} — ${c.amber(
-    clock(slowest.waitSeconds),
-  )} ${c.dim(`of ${clock(slowest.durationSeconds)} was wait (${slowest.system})`)}`,
+  `\n    ${c.amber(measured ? "longest measured span" : "largest single delay")}  ${c.bold(slowest.action)} — ${c.amber(
+    clock(measured ? slowest.durationSeconds : slowest.waitSeconds),
+  )} ${c.dim(measured ? `executed by ${slowest.system}` : `of ${clock(slowest.durationSeconds)} was wait (${slowest.system})`)}`,
 );
 
 // ── The ledger a developer reads ────────────────────────────────────────────
@@ -128,22 +131,19 @@ console.log(`\n${c.grey(RULE)}`);
 console.log(`${okChip(" ✓ ")} ${c.bold("Measured.")} ${c.dim(`${steps.length} spans · ${model.lineage.length} causal links`)}\n`);
 
 console.log(`    ${c.bold("The three to remember")}`);
+console.log(`      ${c.amber("1.")} ${measured
+  ? `${c.bold(clock(sum.activeSeconds))} was captured in spans; ${c.bold(clock(sum.waitSeconds))} remains unattributed overhead.`
+  : `${c.bold(pct(sum.waitSeconds / sum.elapsedSeconds))} of the lead time was waiting, not thinking.`}`);
 console.log(
-  `      ${c.amber("1.")} ${c.bold(pct(sum.waitSeconds / sum.elapsedSeconds))} of the lead time was ${c.bold(
-    "waiting",
-  )}, not thinking.`,
-);
-console.log(`         ${c.dim("Buying a faster model optimises the 32%. The queue is the other 68%.")}`);
-console.log(
-  `      ${c.amber("2.")} ${c.bold(usd(sum.totalCostUsd))} bought ${c.bold("one verified production change")}.`,
+  `      ${c.amber("2.")} ${c.bold(usd(sum.totalCostUsd))} ${measured ? "is honest: no billing record was emitted" : `bought ${c.bold("one verified production change")}`}.`,
 );
 console.log(`         ${c.dim(`${sum.tokenTotal.toLocaleString()} tokens · ${sum.toolCalls} tool calls · ${sum.retries} retries`)}`);
 console.log(
-  `      ${c.amber("3.")} ${c.bold("Shipping is proven, not asserted")} — ${pct(
+  `      ${c.amber("3.")} ${c.bold(measured ? "Verification and persistence are proven" : "Shipping is proven, not asserted")} — ${pct(
     sum.attributionCoverage,
   )} of steps trace to an artifact.`,
 );
 console.log(`         ${c.dim("Break one causal link and this line reads Unproven instead.")}\n`);
 
-console.log(`    ${c.dim("cost basis")}  ${pricing.provenance} · ${pricing.version} · not a billing record`);
+console.log(`    ${c.dim("cost basis")}  ${pricing.provenance} · ${pricing.version ?? "not metered"} · not a billing record`);
 console.log(`    ${c.dim("browser")}    pnpm cockpit → http://127.0.0.1:4173\n`);

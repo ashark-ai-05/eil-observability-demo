@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { performance } from "node:perf_hooks";
 import {
   assertValid,
   canonicalEventPolicyErrors,
@@ -28,6 +29,27 @@ const exec = (program, args, cwd = root) => spawnSync(program, args, {
 });
 const implementation = `export function shouldRetryPayment({ status, attempts }) {\n  if (attempts >= 3) return false;\n  return status === 429 || status >= 500;\n}\n`;
 
+const measuredSteps = [];
+async function measured(id, action, operation, metrics = () => ({})) {
+  const startedAt = new Date().toISOString();
+  const started = performance.now();
+  const value = await operation();
+  const endedAt = new Date().toISOString();
+  const durationMs = Math.max(0.01, performance.now() - started);
+  const step = {
+    id,
+    action,
+    startedAt,
+    endedAt,
+    durationMs: Number(durationMs.toFixed(3)),
+    status: "succeeded",
+    metrics: metrics(value),
+  };
+  measuredSteps.push(step);
+  console.log(`STEP ${id} ${step.durationMs.toFixed(3)}ms`);
+  return value;
+}
+
 async function reset() {
   await rm(demoRoot, { recursive: true, force: true });
   await mkdir(repo, { recursive: true });
@@ -46,12 +68,54 @@ async function reset() {
 }
 
 async function run() {
-  const scenario = await json("scenario/payment-retry.json");
-  const runner = await json("runners/maas.json");
-  const evidenceManifest = await json("scenario/evidence-manifest.json");
-  const validate = await validators();
+  measuredSteps.length = 0;
+  await mkdir(runDir, { recursive: true });
+  const sources = await measured(
+    "read-enterprise-context",
+    "Read indexed Jira and Confluence evidence",
+    async () => {
+      const context = process.env.LIFECYCLE_CONTEXT_FILE
+        ? JSON.parse(await readFile(resolve(process.env.LIFECYCLE_CONTEXT_FILE), "utf8"))
+        : null;
+      return {
+        scenario: await json("scenario/payment-retry.json"),
+        runner: await json("runners/maas.json"),
+        evidenceManifest: await json("scenario/evidence-manifest.json"),
+        validate: await validators(),
+        context,
+      };
+    },
+    ({ scenario, evidenceManifest, context }) => ({
+      sourceMode: "simulated",
+      retrievalMode: context ? "real_eil_pipeline" : "fixture_fallback",
+      jiraIssuesRead: context?.evidence.filter((item) => item.source === "jira").length ?? 1,
+      confluenceEvidenceRead: context?.evidence.filter((item) => item.source === "confluence").length ?? evidenceManifest.authorized.length,
+      taskId: scenario.scenarioId,
+    }),
+  );
+  const { scenario, runner, evidenceManifest, validate, context } = sources;
   assertValid(validate.scenario, scenario, "scenario");
   assertValid(validate.runner, runner, "maas runner");
+  const criteriaPath = resolve(runDir, "criteria.json");
+  const criteria = await measured(
+    "write-acceptance-criteria",
+    "Write evidence-linked acceptance criteria",
+    async () => {
+      const value = {
+        taskId: scenario.scenarioId,
+        derivedFrom: context?.evidence.map((item) => item.ref) ?? evidenceManifest.authorized,
+        criteria: [
+          "Retry HTTP 429 and 5xx responses only",
+          "Never retry after three attempts",
+          "The regression test fails before the patch and passes after it",
+          "The accepted commit and telemetry receipt resolve to the same run",
+        ],
+      };
+      await writeFile(criteriaPath, stableJson(value));
+      return value;
+    },
+    (value) => ({ criteriaWritten: value.criteria.length, evidenceLinks: value.derivedFrom.length }),
+  );
   const startCommit = exec("git", ["rev-parse", "HEAD"], repo).stdout.trim();
   const templateBytes = Buffer.concat([
     await readFile(resolve(root, "scenario/repository/payment-retry.mjs")),
@@ -60,20 +124,43 @@ async function run() {
   const manifestMatches = startCommit === scenario.repository.startCommit &&
     digest(templateBytes) === scenario.repository.worktreeDigest;
 
-  const before = exec(process.execPath, ["payment-retry.test.mjs"], repo);
+  const before = await measured(
+    "reproduce-defect",
+    "Run the regression before the change",
+    async () => exec(process.execPath, ["payment-retry.test.mjs"], repo),
+    (result) => ({ command: "node payment-retry.test.mjs", exitCode: result.status, expectedFailure: true }),
+  );
   if (before.status === 0) throw new Error("incident reproduction unexpectedly passed before patch");
 
-  await writeFile(resolve(repo, "payment-retry.mjs"), implementation);
-  const after = exec(process.execPath, ["payment-retry.test.mjs"], repo);
+  await measured(
+    "apply-code-change",
+    "Apply the payment retry code change",
+    async () => writeFile(resolve(repo, "payment-retry.mjs"), implementation),
+    () => ({ filesChanged: 1, outputBytes: Buffer.byteLength(implementation) }),
+  );
+  const after = await measured(
+    "verify-change",
+    "Run the regression after the change",
+    async () => exec(process.execPath, ["payment-retry.test.mjs"], repo),
+    (result) => ({ command: "node payment-retry.test.mjs", exitCode: result.status, testsPassed: result.status === 0 ? 1 : 0 }),
+  );
   if (after.status !== 0) throw new Error(`verification failed after patch: ${after.stderr}`);
   const runId = `maas-${randomUUID()}`;
-  const commit = exec("git", ["add", "."], repo);
-  if (commit.status !== 0) throw new Error(commit.stderr);
-  const committed = exec("git", ["commit", "-q", "-m", "Fix retry eligibility", "-m", `MaaS-Run-ID: ${runId}`], repo);
-  if (committed.status !== 0) throw new Error(committed.stderr);
-  const artifact = exec("git", ["rev-parse", "HEAD"], repo).stdout.trim();
+  const artifact = await measured(
+    "commit-artifact",
+    "Commit the verified change",
+    async () => {
+      const commit = exec("git", ["add", "."], repo);
+      if (commit.status !== 0) throw new Error(commit.stderr);
+      const committed = exec("git", ["commit", "-q", "-m", "Fix retry eligibility", "-m", `MaaS-Run-ID: ${runId}`], repo);
+      if (committed.status !== 0) throw new Error(committed.stderr);
+      return exec("git", ["rev-parse", "HEAD"], repo).stdout.trim();
+    },
+    (commit) => ({ commit, gitOperations: 3 }),
+  );
 
-  await mkdir(runDir, { recursive: true });
+  const recordStartedAt = new Date().toISOString();
+  const recordStarted = performance.now();
   const scenarioDigest = await fileDigest(resolve(root, "scenario/payment-retry.json"));
   const runnerDigest = await fileDigest(resolve(root, "runners/maas.json"));
   const queryDigest = digest("payment retry policy PAY-4471");
@@ -164,6 +251,28 @@ async function run() {
       storedRecording.acceptanceResultDigest !== await fileDigest(acceptancePath)) {
     throw new Error("recording verification failed at capture");
   }
+  measuredSteps.push({
+    id: "record-evidence",
+    action: "Write the correlated receipt, evidence and recording",
+    startedAt: recordStartedAt,
+    endedAt: new Date().toISOString(),
+    durationMs: Number(Math.max(0.01, performance.now() - recordStarted).toFixed(3)),
+    status: "succeeded",
+    metrics: {
+      receiptsWritten: 1,
+      acceptanceGates: acceptance.gates.length,
+      gatesPassed: passedCount,
+      recordingDigests: recording.receiptDigests.length + recording.artifactDigests.length + 1,
+      criteriaArtifact: criteriaPath,
+    },
+  });
+  await writeFile(resolve(runDir, "measured-steps.json"), stableJson({
+    schemaVersion: 1,
+    provenance: { sourceData: "simulated", operations: "measured" },
+    runId,
+    artifactCommit: artifact,
+    steps: measuredSteps,
+  }));
   console.log(`RUN ${runId} commit=${artifact} gates=${passedCount}/12`);
 }
 

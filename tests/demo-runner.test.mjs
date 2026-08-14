@@ -4,15 +4,30 @@ import { test } from "node:test";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-test("controlled reference run resets, fixes, accepts, and replays", () => {
+test("controlled reference run resets, measures each change step, accepts, and replays", async () => {
+  const project = resolve(import.meta.dirname, "..");
   const result = spawnSync(process.execPath, ["scripts/demo-runner.mjs", "all"], {
-    cwd: resolve(import.meta.dirname, ".."), encoding: "utf8",
+    cwd: project, encoding: "utf8",
   });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /RUN maas-/);
   assert.match(result.stdout, /REPLAY VERIFIED/);
   assert.match(result.stdout, /8\/12 gates/);
   assert.match(result.stdout, /zero_acl_leakage,citations_resolve,independent_acceptance,recording_verified/);
+  const measured = JSON.parse(await readFile(resolve(project, ".demo/run/measured-steps.json"), "utf8"));
+  assert.deepEqual(measured.provenance, { sourceData: "simulated", operations: "measured" });
+  assert.deepEqual(measured.steps.map((step) => step.id), [
+    "read-enterprise-context",
+    "write-acceptance-criteria",
+    "reproduce-defect",
+    "apply-code-change",
+    "verify-change",
+    "commit-artifact",
+    "record-evidence",
+  ]);
+  assert.ok(measured.steps.every((step) => step.durationMs > 0));
+  assert.equal(measured.steps.find((step) => step.id === "reproduce-defect").metrics.exitCode, 1);
+  assert.equal(measured.steps.find((step) => step.id === "verify-change").metrics.exitCode, 0);
 });
 
 test("replay fails when evidence is missing", async () => {

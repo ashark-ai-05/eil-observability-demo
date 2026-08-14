@@ -140,8 +140,8 @@ registry uses a corporate CA, configure Node/pnpm to trust it before installing.
 macOS or Linux:
 
 ```bash
-unzip corp-transfer-2.zip -d corp-transfer-2
-cd corp-transfer-2
+unzip corp-transfer.zip -d corp-transfer
+cd corp-transfer
 shasum -a 256 -c SHA256SUMS.txt  # macOS
 # or: sha256sum -c SHA256SUMS.txt # Linux
 
@@ -153,8 +153,8 @@ git bundle list-heads eil-observability-demo.bundle
 Windows PowerShell:
 
 ```powershell
-Expand-Archive .\corp-transfer-2.zip -DestinationPath .\corp-transfer-2
-Set-Location .\corp-transfer-2
+Expand-Archive .\corp-transfer.zip -DestinationPath .\corp-transfer
+Set-Location .\corp-transfer
 Get-FileHash -Algorithm SHA256 .\*.bundle
 git bundle list-heads .\enterprise-intelligence-layer.bundle
 git bundle list-heads .\enterprise-ai-observability.bundle
@@ -167,12 +167,12 @@ revisions must be:
 ```text
 enterprise-intelligence-layer  c8380bd1ff1a49be3cd7bcdcff0e59a05fcc1cf1
 enterprise-ai-observability    1160abe1794784fcbd045738d37ba9b24aab7b75
-eil-observability-demo         a56cdadb7699e827038bd00fe6d019d7ef9c0966
+eil-observability-demo         use the `refs/heads/main` value printed by `git bundle list-heads`
 ```
 
 ##### 2. Restore the three repositories locally
 
-Run from the unpacked `corp-transfer-2` directory:
+Run from the unpacked `corp-transfer` directory:
 
 ```bash
 git clone enterprise-intelligence-layer.bundle enterprise-intelligence-layer
@@ -262,7 +262,7 @@ eil c8380bd1 -> observability 1160abe1: eil/retrieval, capture metadata_only, id
 account/build issue can make them report a blocker without invalidating a green
 local product integration test.
 
-##### 5. Open the simulated delivery command center
+##### 5. Run and open the measured delivery command center
 
 From `eil-observability-demo`:
 
@@ -274,29 +274,28 @@ pnpm lifecycle          # add -- --pause for a presenter-led run
 pnpm cockpit            # then open http://127.0.0.1:4173
 ```
 
-The lifecycle command is the recommended demo entry point. It runs four acts in
-order and prints each command before its output:
+The lifecycle command is the recommended demo entry point. Only the Confluence,
+Jira and code content is synthetic. Every operation after those source bytes is
+real and measured:
 
 1. **Knowledge plane — real product:** EIL storage, scope registration,
    ingestion, structural chunking, offline embeddings, atomic publication,
    reconciliation, rank fusion, ACL checks, retrieval and MCP surface over the
    deterministic synthetic corpus.
-2. **Change and gates — executable controlled run:** a disposable Git repository
-   reproduces the payment-retry defect, applies the patch, passes verification,
-   commits the result and evaluates all 12 acceptance gates. Unmet gates remain
-   visible; the controlled run currently reports `8/12`.
-3. **Cross-product observation — real products:** pinned EIL emits the retrieval
+2. **Evidence and criteria:** the indexed Jira and Confluence evidence is read,
+   then four acceptance criteria are written with resolvable evidence links.
+3. **Change and gates:** a disposable Git repository reproduces the defect,
+   applies the code change, passes the regression, commits the result and records
+   all 12 acceptance gates. Unmet gates remain visible (`8/12`).
+4. **Cross-product observation — real products:** pinned EIL emits the retrieval
    event and pinned Observability validates, persists and idempotently replays
    it through the real integration test.
-4. **Delivery journey — labelled simulation:** Jira → Confluence → code →
-   criteria → implementation → commit → Bamboo → TST → approval → PRD, with
-   elapsed/active/wait time, tokens, tool calls, retries, cost and evidence.
 
-The closing provenance ledger counts only acts that completed. Missing product
-paths, a drifted pin or a failed command are shown as skipped/not proven; the
-script does not report the planned act as executed. The browser cockpit maps the
-same delivery trace used by the terminal journey and is explicitly labelled
-**SIMULATED DATA** for the corporate systems that are not connected.
+Each span captures its actual wall time, operation counts, result counts, status
+and artifact. The run writes `.demo/lifecycle/run.json`; `pnpm cockpit` reads
+that file automatically. Tokens are a measured zero because this credential-free
+run makes no model call. Cost is `unknown`, never `$0`, because nothing returns a
+billing record. Missing paths, a drifted pin or a failed command stop the run.
 
 GitHub Actions do not run in Stash. Reproduce `pnpm check`, both product builds,
 and `pnpm test:integration` in Bamboo when turning this manual test into a
@@ -372,30 +371,33 @@ pnpm cockpit            # browser command center
 pnpm journey            # delivery-trace act only; no product execution
 ```
 
-Open <http://127.0.0.1:4173>. The command center renders a clearly labelled
-simulation of one task moving from Jira and Confluence discovery through code,
-acceptance criteria, implementation, verification, Bamboo, TST and PRD. Its
-executive and developer views are derived from the same lifecycle trace in
-`scenario/delivery-lifecycle.json`, including active/wait time, tokens, tool
-calls, retries, resource use, estimated cost and linked artifacts. The
-simulation is a product-experience demonstration; it is not evidence of live
-corporate Jira, Confluence, Bamboo or deployment connectivity.
+Open <http://127.0.0.1:4173>. The command center reads the run just produced:
+ingestion → indexing → Jira/Confluence evidence read → acceptance criteria →
+failing regression → code change → passing regression → commit → canonical
+receipt → real Observability persistence and idempotent replay. It displays the
+actual durations, document/chunk/result counts, tool/process calls, test exit
+codes, commit SHA, gates and receipt facts captured during that run.
 
-`pnpm lifecycle` is the full runnable sequence. Its first act invokes EIL's real
-`pnpm demo`, including ingestion and indexing; its second executes the reset,
-defect reproduction, patch, verification, commit and acceptance gates; its third
-runs the pinned EIL-to-Observability integration; and its fourth invokes
-`pnpm journey`. The final ledger distinguishes real product execution from the
-labelled corporate-system simulation and refuses to count a skipped or failed
-act as proven.
+The provenance boundary is narrow and visible: Confluence, Jira and code
+**content** are deterministic fixtures; the storage, ingestion, normalization,
+chunking, embeddings, indexes, retrieval, criteria writer, filesystem mutation,
+test runner, Git operations, canonical event handling, database migrations,
+Observability ingestion, replay and cockpit aggregation all execute.
 
-`pnpm journey` follows the same presentation pattern as EIL's
-`demo/eil.mjs`: it names what each step demonstrates, shows the evidence
-artifact, and prints the measured elapsed/active/wait, token, tool-call and cost
-figures before moving on. It ends with one measured-output summary derived from
-the same trace used by the cockpit. `pnpm cockpit` renders that journey as the
-executive flow, cost/wait insight cards, developer trace ledger and final
-measured-output panel at <http://127.0.0.1:4173>.
+The platform views are served beside the cockpit:
+
+- <http://127.0.0.1:4173/platform/eil-platform.html>
+- <http://127.0.0.1:4173/platform/observability-plane.html>
+
+`platform/eil-platform.html` is the standalone presentation source. Copy it
+where your presentation workflow expects it, for example
+`cp platform/eil-platform.html ~/Documents/eil-platform.html`. When served by
+`pnpm cockpit`, its observability slide reads `/api/run`, so the figures come
+from the same measured record as the cockpit. Opened directly as a file, it
+shows unknown placeholders instead of retaining stale figures from an older
+run. The companion observability plane uses the same visual language and spells
+out capture, measurement, attribution, presentation and the feedback loop into
+ingest/index.
 
 ```bash
 pnpm install --frozen-lockfile
